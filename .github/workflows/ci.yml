@@ -109,14 +109,17 @@ jobs:
         shell: bash
         run: echo "value=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
 
-      - name: Restore
-        run: dotnet restore Pdv.sln
+      - name: Restore web and tests
+        shell: bash
+        run: |
+          dotnet restore src/Pdv.Web/Pdv.Web.csproj
+          dotnet restore tests/Pdv.Domain.Tests/Pdv.Domain.Tests.csproj
 
-      - name: Build
-        run: dotnet build Pdv.sln --configuration Release --no-restore
+      - name: Build web service
+        run: dotnet build src/Pdv.Web/Pdv.Web.csproj --configuration Release --no-restore
 
-      - name: Test
-        run: dotnet test Pdv.sln --configuration Release --no-build --logger "trx;LogFileName=tests.trx"
+      - name: Test domain
+        run: dotnet test tests/Pdv.Domain.Tests/Pdv.Domain.Tests.csproj --configuration Release --no-restore --logger "trx;LogFileName=tests.trx"
 
       - name: Publish web service
         run: >
@@ -124,6 +127,7 @@ jobs:
           --configuration Release
           --runtime linux-x64
           --self-contained true
+          --no-restore
           --output artifacts/web
           -p:Version=${{ steps.version.outputs.value }}
 
