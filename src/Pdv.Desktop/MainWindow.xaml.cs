@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using Pdv.Desktop.Services;
@@ -99,7 +100,7 @@ public partial class MainWindow : Window
 
             if (index % 2 == 0)
             {
-                var label = new System.Windows.Controls.TextBlock
+                var label = new TextBlock
                 {
                     Text = $"{point.Hour:00}h",
                     Foreground = new SolidColorBrush(Color.FromRgb(116, 128, 149)),

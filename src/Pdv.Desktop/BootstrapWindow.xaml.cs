@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using Pdv.Desktop.Services;
@@ -28,7 +29,7 @@ public partial class BootstrapWindow : Window
         }
 
         var selected = (ComboBoxItem)SegmentComboBox.SelectedItem;
-        var segment = int.Parse((string)selected.Tag);
+        var segment = int.Parse((string)selected.Tag, CultureInfo.InvariantCulture);
 
         try
         {

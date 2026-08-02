@@ -41,10 +41,8 @@ public sealed class Sale : Entity
         EnsureDraft();
         ArgumentOutOfRangeException.ThrowIfNegative(discount);
 
-        if (discount > _items.Sum(item => item.Total))
-        {
-            throw new ArgumentOutOfRangeException(nameof(discount));
-        }
+        var subtotal = _items.Sum(item => item.Total);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(discount, subtotal);
 
         Discount = decimal.Round(discount, 2, MidpointRounding.AwayFromZero);
         Touch();
