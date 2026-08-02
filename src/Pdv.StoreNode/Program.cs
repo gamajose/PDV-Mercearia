@@ -71,6 +71,7 @@ app.MapGet("/health", () => Results.Ok(new
 }));
 
 app.MapGet("/api/bootstrap/status", async (
+    HttpContext httpContext,
     NodeSettingsStore settingsStore,
     IDbContextFactory<PdvDbContext> contextFactory,
     CancellationToken cancellationToken) =>
@@ -89,7 +90,11 @@ app.MapGet("/api/bootstrap/status", async (
         settings.StoreId,
         settings.StoreCode,
         settings.IsAdministrationHub,
-        terminalApiKey = configured ? settings.TerminalApiKey : null
+        terminalApiKey = configured &&
+                         httpContext.Connection.RemoteIpAddress is { } address &&
+                         IPAddress.IsLoopback(address)
+            ? settings.TerminalApiKey
+            : null
     });
 });
 
