@@ -7,6 +7,8 @@ public sealed class PdvDbContext(DbContextOptions<PdvDbContext> options) : DbCon
 {
     public DbSet<Company> Companies => Set<Company>();
     public DbSet<Store> Stores => Set<Store>();
+    public DbSet<AppUser> Users => Set<AppUser>();
+    public DbSet<UserPermission> UserPermissions => Set<UserPermission>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<InventoryBalance> InventoryBalances => Set<InventoryBalance>();
     public DbSet<Sale> Sales => Set<Sale>();
@@ -32,6 +34,27 @@ public sealed class PdvDbContext(DbContextOptions<PdvDbContext> options) : DbCon
             entity.Property(x => x.Code).HasMaxLength(20).IsRequired();
             entity.Property(x => x.Name).HasMaxLength(120).IsRequired();
             entity.HasIndex(x => new { x.CompanyId, x.Code }).IsUnique();
+        });
+
+        modelBuilder.Entity<AppUser>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.DisplayName).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.Login).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.PasswordHash).HasMaxLength(600).IsRequired();
+            entity.HasIndex(x => x.Login).IsUnique();
+            entity.HasIndex(x => new { x.CompanyId, x.IsActive });
+        });
+
+        modelBuilder.Entity<UserPermission>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Permission).HasMaxLength(100).IsRequired();
+            entity.HasIndex(x => new { x.UserId, x.Permission }).IsUnique();
+            entity.HasOne<AppUser>()
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Product>(entity =>
