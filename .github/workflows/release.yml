@@ -13,76 +13,127 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
-    runs-on: windows-latest
-
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      value: ${{ steps.version.outputs.value }}
+      tag: ${{ steps.version.outputs.tag }}
+      publish: ${{ steps.version.outputs.publish }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "VERSION inválida" >&2; exit 1; }
+          tag="v${version}"
+          git fetch --tags --force
+          if git rev-parse "refs/tags/${tag}" >/dev/null 2>&1; then publish=false; else publish=true; fi
+          echo "value=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "publish=${publish}" >> "$GITHUB_OUTPUT"
+
+  windows:
+    needs: version
+    if: needs.version.outputs.publish == 'true'
+    runs-on: windows-latest
+    env:
+      PDV_VERSION: ${{ needs.version.outputs.value }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-
-      - name: Resolve version
-        id: version
-        shell: pwsh
-        run: |
-          $version = (Get-Content VERSION).Trim()
-          if ($version -notmatch '^\d+\.\d+\.\d+$') {
-            throw "VERSION deve seguir o formato MAJOR.MINOR.PATCH."
-          }
-
-          $tag = "v$version"
-          git fetch --tags --force
-          $existing = git tag --list $tag
-          $publish = [string]::IsNullOrWhiteSpace($existing)
-
-          "value=$version" >> $env:GITHUB_OUTPUT
-          "tag=$tag" >> $env:GITHUB_OUTPUT
-          "publish=$($publish.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-          "PDV_VERSION=$version" >> $env:GITHUB_ENV
-
-      - name: Version already published
-        if: steps.version.outputs.publish != 'true'
-        shell: pwsh
-        run: Write-Host "A versão ${{ steps.version.outputs.tag }} já está publicada."
-
-      - name: Restore, build and test
-        if: steps.version.outputs.publish == 'true'
+      - name: Restore build and test
         shell: pwsh
         run: |
           dotnet restore Pdv.sln
           dotnet build Pdv.sln --configuration Release --no-restore
           dotnet test Pdv.sln --configuration Release --no-build
-
-      - name: Publish applications
-        if: steps.version.outputs.publish == 'true'
+      - name: Publish desktop applications
         shell: pwsh
         run: |
-          dotnet publish src/Pdv.StoreNode/Pdv.StoreNode.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/store-node -p:Version=${{ steps.version.outputs.value }}
-          dotnet publish src/Pdv.Desktop/Pdv.Desktop.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/desktop -p:Version=${{ steps.version.outputs.value }}
-
-      - name: Build installers
-        if: steps.version.outputs.publish == 'true'
+          dotnet publish src/Pdv.StoreNode/Pdv.StoreNode.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/store-node -p:Version=${{ needs.version.outputs.value }}
+          dotnet publish src/Pdv.Desktop/Pdv.Desktop.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/desktop -p:Version=${{ needs.version.outputs.value }}
+      - name: Build Windows installers
         shell: pwsh
         run: |
           choco install innosetup --no-progress -y
           New-Item -ItemType Directory -Force installer/output | Out-Null
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer/central.iss
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer/terminal.iss
+      - name: Upload Windows assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: installer/output/*.exe
+          if-no-files-found: error
 
+  web-linux:
+    needs: version
+    if: needs.version.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore build and test
+        run: |
+          dotnet restore Pdv.sln
+          dotnet build Pdv.sln --configuration Release --no-restore
+          dotnet test Pdv.sln --configuration Release --no-build
+      - name: Publish web service
+        run: >
+          dotnet publish src/Pdv.Web/Pdv.Web.csproj
+          --configuration Release
+          --runtime linux-x64
+          --self-contained true
+          --output artifacts/web
+          -p:Version=${{ needs.version.outputs.value }}
+      - name: Package Linux assets
+        shell: bash
+        run: |
+          mkdir -p artifacts/web/tools dist
+          cp deploy/linux/update-web.sh artifacts/web/tools/update-web.sh
+          chmod +x artifacts/web/Pdv.Web artifacts/web/tools/update-web.sh deploy/linux/install-web.sh
+          archive="PDV-Gama-Web-${{ needs.version.outputs.value }}-linux-x64.tar.gz"
+          tar -C artifacts/web -czf "dist/${archive}" .
+          sha256sum "dist/${archive}" | sed "s#dist/##" > "dist/${archive}.sha256"
+          cp deploy/linux/install-web.sh dist/PDV-Gama-install-web.sh
+      - name: Upload Linux assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-web-linux
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: [version, windows, web-linux]
+    if: needs.version.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
       - name: Create version tag and GitHub release
-        if: steps.version.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        shell: pwsh
         run: |
-          gh release create "${{ steps.version.outputs.tag }}" installer/output/*.exe `
-            --repo "${{ github.repository }}" `
-            --target "${{ github.sha }}" `
-            --title "PDV Gama ${{ steps.version.outputs.value }}" `
+          gh release create "${{ needs.version.outputs.tag }}" release-assets/* \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "PDV Gama ${{ needs.version.outputs.value }}" \
             --generate-notes
