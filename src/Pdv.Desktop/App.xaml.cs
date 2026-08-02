@@ -6,9 +6,10 @@ using Pdv.Desktop.Updates;
 
 namespace Pdv.Desktop;
 
-public partial class App : Application
+public partial class App : Application, IDisposable
 {
     private readonly CancellationTokenSource _updateCancellationTokenSource = new();
+    private bool _disposed;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -111,8 +112,20 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         _updateCancellationTokenSource.Cancel();
-        _updateCancellationTokenSource.Dispose();
+        Dispose();
         base.OnExit(e);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _updateCancellationTokenSource.Dispose();
+        _disposed = true;
+        GC.SuppressFinalize(this);
     }
 
     private static async Task MonitorUpdatesAsync(Window owner, CancellationToken cancellationToken)
