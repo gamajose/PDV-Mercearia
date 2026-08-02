@@ -18,6 +18,11 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\Pdv.Desktop.exe
+CloseApplications=yes
+CloseApplicationsFilter=Pdv.Desktop.exe
+RestartApplications=no
+UsePreviousAppDir=yes
+SetupLogging=yes
 
 [Files]
 Source: "..\artifacts\desktop\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
