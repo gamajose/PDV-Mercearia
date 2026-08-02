@@ -2,12 +2,13 @@ using System.Windows;
 
 namespace Pdv.Desktop.Updates;
 
-public partial class UpdateWindow : Window
+public partial class UpdateWindow : Window, IDisposable
 {
     private readonly ReleaseUpdateService _updateService;
     private readonly AvailableUpdate _update;
     private readonly CancellationTokenSource _cancellationTokenSource = new();
     private string? _installerPath;
+    private bool _disposed;
 
     internal UpdateWindow(ReleaseUpdateService updateService, AvailableUpdate update)
     {
@@ -87,8 +88,20 @@ public partial class UpdateWindow : Window
 
     private void Window_Closed(object? sender, EventArgs e)
     {
+        Dispose();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
         _cancellationTokenSource.Cancel();
         _cancellationTokenSource.Dispose();
+        _disposed = true;
+        GC.SuppressFinalize(this);
     }
 
     private void ShowDownloadError(string message)
