@@ -19,6 +19,10 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\Desktop\Pdv.Desktop.exe
 SetupLogging=yes
+CloseApplications=yes
+CloseApplicationsFilter=Pdv.Desktop.exe
+RestartApplications=no
+UsePreviousAppDir=yes
 
 [Files]
 Source: "..\artifacts\store-node\*"; DestDir: "{app}\StoreNode"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -33,6 +37,7 @@ Name: "desktopicon"; Description: "Criar atalho na área de trabalho"; GroupDesc
 
 [Run]
 Filename: "{sys}\sc.exe"; Parameters: "create PDVGamaStoreNode binPath= ""{app}\StoreNode\Pdv.StoreNode.exe"" start= auto DisplayName= ""PDV Gama - Nó da Loja"""; Flags: runhidden waituntilterminated
+Filename: "{sys}\sc.exe"; Parameters: "config PDVGamaStoreNode binPath= ""{app}\StoreNode\Pdv.StoreNode.exe"" start= auto DisplayName= ""PDV Gama - Nó da Loja"""; Flags: runhidden waituntilterminated
 Filename: "{sys}\sc.exe"; Parameters: "description ""PDVGamaStoreNode"" ""Serviço local, banco e sincronização do PDV Gama."""; Flags: runhidden waituntilterminated
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""PDV Gama - Rede local"" dir=in action=allow protocol=TCP localport=5080 profile=private"; Flags: runhidden waituntilterminated
 Filename: "{sys}\sc.exe"; Parameters: "start ""PDVGamaStoreNode"""; Flags: runhidden waituntilterminated
@@ -42,3 +47,19 @@ Filename: "{app}\Desktop\Pdv.Desktop.exe"; Description: "Abrir PDV Gama"; Flags:
 Filename: "{sys}\sc.exe"; Parameters: "stop ""PDVGamaStoreNode"""; Flags: runhidden waituntilterminated; RunOnceId: "StopService"
 Filename: "{sys}\sc.exe"; Parameters: "delete ""PDVGamaStoreNode"""; Flags: runhidden waituntilterminated; RunOnceId: "DeleteService"
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""PDV Gama - Rede local"""; Flags: runhidden waituntilterminated; RunOnceId: "DeleteFirewall"
+
+[Code]
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  Exec(
+    ExpandConstant('{sys}\sc.exe'),
+    'stop "PDVGamaStoreNode"',
+    '',
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode);
+  Sleep(1500);
+  Result := '';
+end;
