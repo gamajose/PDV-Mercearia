@@ -1,0 +1,62 @@
+name: Build Windows Installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Versão do instalador, por exemplo 0.1.0
+        required: false
+        default: 0.1.0
+  pull_request:
+    branches:
+      - main
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Definir versão
+        shell: pwsh
+        run: |
+          $version = "${{ github.event.inputs.version }}"
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            $version = "${{ github.ref_name }}".TrimStart("v")
+          }
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            $version = "0.1.0"
+          }
+          "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Compilar aplicação
+        run: mvn --batch-mode clean package
+
+      - name: Instalar WiX Toolset
+        run: choco install wixtoolset --yes --no-progress
+
+      - name: Gerar instalador EXE
+        shell: pwsh
+        run: ./packaging/build-installer.ps1 -AppVersion $env:APP_VERSION
+
+      - name: Publicar instalador
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdv-gama-windows-${{ env.APP_VERSION }}
+          path: dist/*.exe
+          if-no-files-found: error
