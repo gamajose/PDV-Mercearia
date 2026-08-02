@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="Prévia navegável da interface do PDV Gama." />
+  <title>PDV Gama — Prévia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0,0" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="preview-badge">
+    <span class="material-symbols-rounded">visibility</span>
+    Prévia da interface · dados demonstrativos
+  </div>
+
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Navegação principal">
+      <div class="brand" aria-label="PDV Gama">G</div>
+      <nav class="nav-list">
+        <button class="nav-button active" data-view="dashboard" title="Visão geral" aria-label="Visão geral">
+          <span class="material-symbols-rounded">space_dashboard</span>
+        </button>
+        <button class="nav-button" data-view="sale" title="Nova venda" aria-label="Nova venda">
+          <span class="material-symbols-rounded">point_of_sale</span>
+        </button>
+        <button class="nav-button" data-view="products" title="Produtos" aria-label="Produtos">
+          <span class="material-symbols-rounded">inventory_2</span>
+        </button>
+        <button class="nav-button" data-view="inventory" title="Estoque" aria-label="Estoque">
+          <span class="material-symbols-rounded">warehouse</span>
+        </button>
+        <button class="nav-button" data-view="purchases" title="Compras" aria-label="Compras">
+          <span class="material-symbols-rounded">shopping_cart</span>
+        </button>
+        <button class="nav-button" data-view="reports" title="Relatórios" aria-label="Relatórios">
+          <span class="material-symbols-rounded">monitoring</span>
+        </button>
+      </nav>
+      <button class="nav-button" data-view="settings" title="Configurações" aria-label="Configurações">
+        <span class="material-symbols-rounded">settings</span>
+      </button>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Loja 01 · Matriz</p>
+          <h1 id="page-title">Visão geral</h1>
+        </div>
+        <div class="topbar-actions">
+          <button class="icon-action" id="update-button" title="Verificar atualizações" aria-label="Verificar atualizações">
+            <span class="material-symbols-rounded">system_update</span>
+          </button>
+          <div class="status-pill">
+            <span class="status-dot"></span>
+            <span>Sincronizado</span>
+          </div>
+          <button class="avatar" title="Administrador">JG</button>
+        </div>
+      </header>
+
+      <section class="view active" id="dashboard-view" data-title="Visão geral">
+        <div class="metric-grid">
+          <article class="metric-card">
+            <div class="metric-icon blue"><span class="material-symbols-rounded">payments</span></div>
+            <span>Vendas hoje</span>
+            <strong>R$ 8.942,30</strong>
+            <small class="positive">+12,4% ontem</small>
+          </article>
+          <article class="metric-card">
+            <div class="metric-icon green"><span class="material-symbols-rounded">receipt_long</span></div>
+            <span>Operações</span>
+            <strong>184</strong>
+            <small>Ticket médio R$ 48,60</small>
+          </article>
+          <article class="metric-card">
+            <div class="metric-icon orange"><span class="material-symbols-rounded">warning</span></div>
+            <span>Estoque baixo</span>
+            <strong>12</strong>
+            <small>3 itens críticos</small>
+          </article>
+          <article class="metric-card">
+            <div class="metric-icon purple"><span class="material-symbols-rounded">cloud_sync</span></div>
+            <span>Filiais online</span>
+            <strong>4 / 4</strong>
+            <small>Atualizado agora</small>
+          </article>
+        </div>
+
+        <div class="dashboard-grid">
+          <article class="panel chart-panel">
+            <div class="panel-heading">
+              <div>
+                <span>Movimento do dia</span>
+                <small>Vendas por horário</small>
+              </div>
+              <button class="soft-button"><span class="material-symbols-rounded">calendar_today</span>Hoje</button>
+            </div>
+            <div class="chart-wrap">
+              <svg id="sales-chart" role="img" aria-label="Gráfico de vendas por horário"></svg>
+            </div>
+          </article>
+
+          <article class="panel quick-panel">
+            <div class="panel-heading"><span>Ações rápidas</span></div>
+            <button class="quick-action blue-action" data-open="sale">
+              <span class="material-symbols-rounded">point_of_sale</span>
+              <div><strong>Iniciar venda</strong><small>Abrir o caixa rápido</small></div>
+              <span class="material-symbols-rounded arrow">chevron_right</span>
+            </button>
+            <button class="quick-action green-action" data-open="products">
+              <span class="material-symbols-rounded">add_box</span>
+              <div><strong>Novo produto</strong><small>Cadastrar item</small></div>
+              <span class="material-symbols-rounded arrow">chevron_right</span>
+            </button>
+            <button class="quick-action orange-action" data-open="inventory">
+              <span class="material-symbols-rounded">inventory</span>
+              <div><strong>Consultar estoque</strong><small>Ver saldos da loja</small></div>
+              <span class="material-symbols-rounded arrow">chevron_right</span>
+            </button>
+          </article>
+        </div>
+
+        <article class="panel recent-panel">
+          <div class="panel-heading">
+            <div><span>Últimas vendas</span><small>Movimento desta loja</small></div>
+            <button class="text-button" data-open="reports">Ver todas</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Venda</th><th>Horário</th><th>Operador</th><th>Pagamento</th><th>Total</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td>#00184</td><td>16:32</td><td>Marina</td><td>PIX</td><td>R$ 86,40</td><td><span class="tag success">Concluída</span></td></tr>
+                <tr><td>#00183</td><td>16:28</td><td>Lucas</td><td>Cartão</td><td>R$ 142,90</td><td><span class="tag success">Concluída</span></td></tr>
+                <tr><td>#00182</td><td>16:21</td><td>Marina</td><td>Dinheiro</td><td>R$ 35,70</td><td><span class="tag success">Concluída</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="view" id="sale-view" data-title="Nova venda">
+        <div class="sale-layout">
+          <article class="panel sale-products">
+            <div class="search-field large-search">
+              <span class="material-symbols-rounded">barcode_scanner</span>
+              <input id="product-search" type="search" placeholder="Leia o código de barras ou pesquise o produto" autocomplete="off" />
+              <kbd>F2</kbd>
+            </div>
+            <div class="category-row">
+              <button class="category active">Todos</button><button class="category">Mercearia</button><button class="category">Bebidas</button><button class="category">Hortifruti</button><button class="category">Limpeza</button>
+            </div>
+            <div class="product-grid" id="product-grid"></div>
+          </article>
+          <article class="panel cart-panel">
+            <div class="panel-heading"><div><span>Venda atual</span><small id="cart-count">0 itens</small></div><button class="icon-action danger" id="clear-cart"><span class="material-symbols-rounded">delete</span></button></div>
+            <div class="cart-list" id="cart-list"><div class="empty-state"><span class="material-symbols-rounded">shopping_basket</span><strong>Nenhum item</strong><small>Selecione um produto para começar</small></div></div>
+            <div class="cart-summary">
+              <div><span>Subtotal</span><strong id="subtotal">R$ 0,00</strong></div>
+              <div><span>Desconto</span><strong>R$ 0,00</strong></div>
+              <div class="cart-total"><span>Total</span><strong id="cart-total">R$ 0,00</strong></div>
+              <button class="primary-button" id="finish-sale"><span class="material-symbols-rounded">payments</span>Finalizar venda <kbd>F10</kbd></button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="products-view" data-title="Produtos">
+        <article class="panel data-panel">
+          <div class="toolbar">
+            <div class="search-field"><span class="material-symbols-rounded">search</span><input type="search" placeholder="Buscar produto" /></div>
+            <button class="primary-button compact"><span class="material-symbols-rounded">add</span>Novo produto</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Produto</th><th>Código</th><th>Categoria</th><th>Unidade</th><th>Preço</th><th>Situação</th><th></th></tr></thead>
+              <tbody id="products-table"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="view" id="inventory-view" data-title="Estoque">
+        <div class="filter-row">
+          <div class="search-field"><span class="material-symbols-rounded">search</span><input type="search" placeholder="Buscar no estoque" /></div>
+          <select><option>Loja 01 · Matriz</option><option>Loja 02</option><option>Loja 03</option><option>Loja 04</option></select>
+          <button class="soft-button"><span class="material-symbols-rounded">tune</span>Filtros</button>
+        </div>
+        <div class="inventory-grid" id="inventory-grid"></div>
+      </section>
+
+      <section class="view" id="purchases-view" data-title="Compras">
+        <article class="panel centered-placeholder"><span class="material-symbols-rounded">shopping_cart_checkout</span><h2>Compras e entradas</h2><p>Fluxo visual para pedidos, fornecedores e entrada de estoque.</p><button class="primary-button compact"><span class="material-symbols-rounded">add</span>Nova compra</button></article>
+      </section>
+
+      <section class="view" id="reports-view" data-title="Relatórios">
+        <div class="report-grid">
+          <article class="panel report-card"><span class="material-symbols-rounded">leaderboard</span><h3>Vendas por loja</h3><p>Compare faturamento, ticket médio e quantidade de vendas.</p></article>
+          <article class="panel report-card"><span class="material-symbols-rounded">inventory</span><h3>Posição de estoque</h3><p>Saldos separados por filial, categoria e produto.</p></article>
+          <article class="panel report-card"><span class="material-symbols-rounded">account_balance_wallet</span><h3>Fechamento de caixa</h3><p>Movimentações, sangrias e diferenças por operador.</p></article>
+        </div>
+      </section>
+
+      <section class="view" id="settings-view" data-title="Configurações">
+        <article class="panel settings-panel">
+          <div class="settings-item"><div class="settings-icon"><span class="material-symbols-rounded">store</span></div><div><strong>Empresa e filiais</strong><small>Dados da empresa, lojas e perfis comerciais</small></div><button class="icon-action"><span class="material-symbols-rounded">chevron_right</span></button></div>
+          <div class="settings-item"><div class="settings-icon"><span class="material-symbols-rounded">computer</span></div><div><strong>Terminais</strong><small>Pareamento e situação dos computadores</small></div><button class="icon-action"><span class="material-symbols-rounded">chevron_right</span></button></div>
+          <div class="settings-item"><div class="settings-icon"><span class="material-symbols-rounded">system_update</span></div><div><strong>Atualizações automáticas</strong><small>Versão instalada 0.2.0 · canal estável</small></div><span class="tag success">Ativo</span></div>
+          <div class="settings-item"><div class="settings-icon"><span class="material-symbols-rounded">cloud_sync</span></div><div><strong>Sincronização</strong><small>Última sincronização há poucos segundos</small></div><span class="tag success">Online</span></div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="update-dialog">
+    <div class="dialog-icon"><span class="material-symbols-rounded">system_update_alt</span></div>
+    <h2>Software atualizado</h2>
+    <p>O PDV verifica as Releases do GitHub, baixa o instalador correto e aplica a atualização na máquina Central ou Terminal.</p>
+    <div class="version-flow"><span>0.1.0</span><span class="material-symbols-rounded">arrow_forward</span><strong>0.2.0</strong></div>
+    <button class="primary-button" id="close-dialog">Entendi</button>
+  </dialog>
+
+  <div class="toast" id="toast"><span class="material-symbols-rounded">check_circle</span><span id="toast-text">Venda concluída</span></div>
+  <script src="app.js"></script>
+</body>
+</html>
