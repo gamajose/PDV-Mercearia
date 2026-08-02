@@ -1,0 +1,162 @@
+* {
+    -fx-font-family: "Segoe UI", "Arial";
+}
+
+.root {
+    -fx-background-color: #f4f6f8;
+    -fx-font-size: 14px;
+}
+
+.brand-panel,
+.sidebar {
+    -fx-background-color: #17324d;
+}
+
+.brand-title {
+    -fx-text-fill: white;
+    -fx-font-size: 42px;
+    -fx-font-weight: 800;
+    -fx-line-spacing: -8px;
+}
+
+.brand-description {
+    -fx-text-fill: #e6eef5;
+    -fx-font-size: 18px;
+    -fx-line-spacing: 5px;
+}
+
+.brand-note,
+.sidebar-version {
+    -fx-text-fill: #a9bed0;
+}
+
+.form-scroll,
+.form-scroll > .viewport {
+    -fx-background-color: #f8fafb;
+}
+
+.page-title,
+.dashboard-title {
+    -fx-text-fill: #18334d;
+    -fx-font-size: 30px;
+    -fx-font-weight: 700;
+}
+
+.page-subtitle,
+.dashboard-subtitle,
+.card-description {
+    -fx-text-fill: #607284;
+    -fx-font-size: 14px;
+}
+
+.field-label {
+    -fx-text-fill: #34495e;
+    -fx-font-weight: 600;
+}
+
+.section-title {
+    -fx-text-fill: #18334d;
+    -fx-font-size: 18px;
+    -fx-font-weight: 700;
+}
+
+.text-field,
+.password-field,
+.combo-box {
+    -fx-background-color: white;
+    -fx-border-color: #ccd6df;
+    -fx-border-radius: 7px;
+    -fx-background-radius: 7px;
+    -fx-padding: 10px 12px;
+}
+
+.text-field:focused,
+.password-field:focused,
+.combo-box:focused {
+    -fx-border-color: #2d7ff9;
+    -fx-effect: dropshadow(gaussian, rgba(45, 127, 249, 0.18), 8, 0.2, 0, 1);
+}
+
+.primary-button {
+    -fx-background-color: #2d7ff9;
+    -fx-text-fill: white;
+    -fx-font-weight: 700;
+    -fx-padding: 13px 18px;
+    -fx-background-radius: 7px;
+    -fx-cursor: hand;
+}
+
+.primary-button:hover {
+    -fx-background-color: #1d6ee8;
+}
+
+.secondary-button {
+    -fx-background-color: #eaf2ff;
+    -fx-text-fill: #1f67c8;
+    -fx-font-weight: 700;
+    -fx-padding: 9px 14px;
+    -fx-background-radius: 7px;
+    -fx-cursor: hand;
+}
+
+.disclaimer,
+.non-fiscal-warning {
+    -fx-background-color: #fff4d6;
+    -fx-text-fill: #6f5612;
+    -fx-padding: 12px 14px;
+    -fx-background-radius: 7px;
+}
+
+.sidebar-logo {
+    -fx-text-fill: white;
+    -fx-font-size: 23px;
+    -fx-font-weight: 800;
+}
+
+.menu-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #e4edf5;
+    -fx-padding: 11px 13px;
+    -fx-background-radius: 7px;
+    -fx-cursor: hand;
+}
+
+.menu-button:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.10);
+}
+
+.header {
+    -fx-background-color: white;
+    -fx-border-color: transparent transparent #e0e6eb transparent;
+}
+
+.header-company {
+    -fx-text-fill: #18334d;
+    -fx-font-size: 18px;
+    -fx-font-weight: 700;
+}
+
+.header-segment,
+.header-user {
+    -fx-text-fill: #718293;
+}
+
+.module-card {
+    -fx-background-color: white;
+    -fx-background-radius: 10px;
+    -fx-border-color: #e0e6eb;
+    -fx-border-radius: 10px;
+    -fx-effect: dropshadow(gaussian, rgba(18, 45, 68, 0.06), 12, 0.15, 0, 3);
+}
+
+.card-title {
+    -fx-text-fill: #18334d;
+    -fx-font-size: 18px;
+    -fx-font-weight: 700;
+}
+
+.status-bar {
+    -fx-background-color: white;
+    -fx-border-color: #e0e6eb transparent transparent transparent;
+    -fx-text-fill: #607284;
+}
