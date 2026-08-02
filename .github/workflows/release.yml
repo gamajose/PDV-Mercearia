@@ -87,17 +87,23 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-      - name: Restore build and test
+      - name: Restore web and tests
+        shell: bash
         run: |
-          dotnet restore Pdv.sln
-          dotnet build Pdv.sln --configuration Release --no-restore
-          dotnet test Pdv.sln --configuration Release --no-build
+          dotnet restore src/Pdv.Web/Pdv.Web.csproj
+          dotnet restore tests/Pdv.Domain.Tests/Pdv.Domain.Tests.csproj
+      - name: Build and test
+        shell: bash
+        run: |
+          dotnet build src/Pdv.Web/Pdv.Web.csproj --configuration Release --no-restore
+          dotnet test tests/Pdv.Domain.Tests/Pdv.Domain.Tests.csproj --configuration Release --no-restore
       - name: Publish web service
         run: >
           dotnet publish src/Pdv.Web/Pdv.Web.csproj
           --configuration Release
           --runtime linux-x64
           --self-contained true
+          --no-restore
           --output artifacts/web
           -p:Version=${{ needs.version.outputs.value }}
       - name: Package Linux assets
