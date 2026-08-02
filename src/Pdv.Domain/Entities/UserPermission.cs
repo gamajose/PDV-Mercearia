@@ -1,7 +1,12 @@
+using System.Diagnostics.CodeAnalysis;
 using Pdv.Domain.Common;
 
 namespace Pdv.Domain.Entities;
 
+[SuppressMessage(
+    "Naming",
+    "CA1711:Identifiers should not have incorrect suffix",
+    Justification = "A entidade representa literalmente uma permissão persistida de usuário.")]
 public sealed class UserPermission : Entity
 {
     private UserPermission()
