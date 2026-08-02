@@ -10,6 +10,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pdv.StoreNode", "src\Pdv.St
 EndProject
 Project("{60DC8134-EBA5-43B8-BCC9-BB4BC16C2548}") = "Pdv.Desktop", "src\Pdv.Desktop\Pdv.Desktop.csproj", "{C73A87B4-2D30-4A2C-9068-73C56EE23A44}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pdv.Web", "src\Pdv.Web\Pdv.Web.csproj", "{A182DA18-85EC-4C64-910F-E808C2DFDF21}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pdv.Domain.Tests", "tests\Pdv.Domain.Tests\Pdv.Domain.Tests.csproj", "{6D95F103-69E4-49A8-8C90-8BAA7414A7AF}"
 EndProject
 Global
@@ -34,6 +36,10 @@ Global
 		{C73A87B4-2D30-4A2C-9068-73C56EE23A44}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C73A87B4-2D30-4A2C-9068-73C56EE23A44}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C73A87B4-2D30-4A2C-9068-73C56EE23A44}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A182DA18-85EC-4C64-910F-E808C2DFDF21}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A182DA18-85EC-4C64-910F-E808C2DFDF21}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A182DA18-85EC-4C64-910F-E808C2DFDF21}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A182DA18-85EC-4C64-910F-E808C2DFDF21}.Release|Any CPU.Build.0 = Release|Any CPU
 		{6D95F103-69E4-49A8-8C90-8BAA7414A7AF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{6D95F103-69E4-49A8-8C90-8BAA7414A7AF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6D95F103-69E4-49A8-8C90-8BAA7414A7AF}.Release|Any CPU.ActiveCfg = Release|Any CPU
