@@ -2,27 +2,41 @@
 
 Sistema de ponto de venda desktop, sem emissão fiscal, voltado a pequenos e médios comércios.
 
-O projeto será distribuído por instalador para Windows e terá banco de dados local, runtime Java e dependências incluídos. O usuário não precisará instalar Java, PostgreSQL ou qualquer outro componente separadamente.
+O projeto é distribuído por instalador para Windows com banco de dados, runtime Java e dependências incluídos. O usuário não precisa instalar Java, PostgreSQL ou qualquer outro componente separadamente.
 
-## Objetivo
+## Perfis de comércio
 
-Atender diferentes segmentos por meio de perfis configuráveis, como mercearia, supermercado, hortifruti, açougue e comércio geral, mantendo uma única base de aplicação.
+Na primeira abertura, o responsável escolhe o perfil da empresa. A mesma aplicação pode ser utilizada em:
 
-## Escopo inicial
+- mercearia;
+- supermercado;
+- hortifruti;
+- açougue;
+- padaria;
+- açaí e sorveteria;
+- loja de conveniência;
+- distribuidora;
+- comércio geral.
+
+A estrutura também aceita matriz e filiais. O estoque é separado por loja, permitindo evoluir posteriormente para vários caixas e sincronização entre unidades.
+
+## Escopo funcional
 
 - configuração da empresa e do segmento na primeira abertura;
-- cadastro de produtos, categorias, clientes e fornecedores;
-- controle de estoque e movimentações;
-- compras e contas a pagar;
-- vendas, caixa e formas de pagamento;
-- emissão de comprovantes não fiscais de compra e venda;
-- relatórios, backup e restauração;
-- usuários, perfis e permissões;
+- criação segura do primeiro usuário administrador;
+- cadastro de produtos por unidade ou peso;
+- categorias, clientes e fornecedores;
+- estoque e movimentações separados por loja;
+- compras e vendas;
+- abertura e fechamento de caixa;
+- dinheiro, PIX, débito, crédito, crediário e outras formas de pagamento;
+- comprovantes não fiscais de compra e venda;
+- base preparada para relatórios, backup e restauração;
 - instalador autônomo para Windows.
 
-> Este sistema não emitirá NF-e, NFC-e, SAT ou qualquer documento fiscal eletrônico. Os documentos gerados serão identificados claramente como comprovantes não fiscais.
+> Este sistema não emite NF-e, NFC-e, SAT ou qualquer documento fiscal eletrônico. Todo documento gerado deve ser identificado claramente como **COMPROVANTE NÃO FISCAL**.
 
-## Arquitetura planejada
+## Tecnologias
 
 - Java 21 LTS;
 - JavaFX 21 LTS;
@@ -30,8 +44,57 @@ Atender diferentes segmentos por meio de perfis configuráveis, como mercearia, 
 - SQLite local;
 - migrações automáticas de banco na inicialização;
 - `jpackage` para gerar instalador Windows com runtime incorporado;
-- GitHub Actions para gerar o instalador a cada versão publicada.
+- GitHub Actions para validar o projeto e gerar o instalador.
 
-## Situação
+## Executar durante o desenvolvimento
 
-Estrutura inicial em desenvolvimento.
+Pré-requisitos para desenvolvimento: JDK 21 e Maven.
+
+```bash
+mvn clean javafx:run
+```
+
+O banco é criado automaticamente em:
+
+- Windows: `%LOCALAPPDATA%\PDVGama\pdv-gama.db`;
+- Linux/macOS para desenvolvimento: `~/.pdv-gama/pdv-gama.db`.
+
+Para utilizar outro diretório durante testes:
+
+```bash
+mvn javafx:run -Dpdv.data.dir=/caminho/temporario
+```
+
+## Compilar
+
+```bash
+mvn clean package
+java -jar target/pdv-gama.jar
+```
+
+## Gerar o instalador no Windows
+
+Com JDK 21, Maven e WiX Toolset instalados:
+
+```powershell
+mvn clean package
+./packaging/build-installer.ps1 -AppVersion 0.1.0
+```
+
+O instalador será criado no diretório `dist`.
+
+Também é possível executar manualmente o workflow **Build Windows Installer** no GitHub. Em versões publicadas com tags como `v0.1.0`, o instalador é gerado automaticamente.
+
+## Situação atual
+
+A fundação do MVP contém:
+
+- assistente de configuração inicial;
+- seleção do ramo de comércio;
+- criação automática do banco e das tabelas;
+- cadastro inicial do administrador com senha protegida;
+- painel principal personalizado para a empresa;
+- estrutura de dados dos módulos de produtos, estoque, clientes, fornecedores, compras, vendas, caixa, pagamentos e comprovantes;
+- pipeline para geração do instalador `.exe`.
+
+As próximas entregas transformarão os cartões do painel em módulos operacionais, começando por **Produtos e Estoque**, seguido por **Venda e Caixa**.
