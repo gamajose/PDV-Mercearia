@@ -11,10 +11,7 @@ public sealed class Product : Entity
 
     public Product(Guid companyId, string sku, string name, UnitOfMeasure unit, decimal salePrice)
     {
-        if (salePrice < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(salePrice));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(salePrice);
 
         CompanyId = companyId;
         Sku = Require(sku, nameof(sku)).ToUpperInvariant();
@@ -34,10 +31,8 @@ public sealed class Product : Entity
 
     public void UpdatePricing(decimal costPrice, decimal salePrice)
     {
-        if (costPrice < 0 || salePrice < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(salePrice));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(costPrice);
+        ArgumentOutOfRangeException.ThrowIfNegative(salePrice);
 
         CostPrice = decimal.Round(costPrice, 2, MidpointRounding.AwayFromZero);
         SalePrice = decimal.Round(salePrice, 2, MidpointRounding.AwayFromZero);

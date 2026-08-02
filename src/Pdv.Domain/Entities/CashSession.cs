@@ -10,10 +10,7 @@ public sealed class CashSession : Entity
 
     public CashSession(Guid storeId, Guid terminalId, Guid openedByUserId, decimal openingAmount)
     {
-        if (openingAmount < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(openingAmount));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(openingAmount);
 
         StoreId = storeId;
         TerminalId = terminalId;
@@ -37,10 +34,7 @@ public sealed class CashSession : Entity
             throw new InvalidOperationException("Caixa já fechado.");
         }
 
-        if (closingAmount < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(closingAmount));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(closingAmount);
 
         ClosingAmount = decimal.Round(closingAmount, 2, MidpointRounding.AwayFromZero);
         ClosedAt = DateTimeOffset.UtcNow;

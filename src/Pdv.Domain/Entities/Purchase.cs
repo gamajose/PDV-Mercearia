@@ -10,10 +10,7 @@ public sealed class Purchase : Entity
 
     public Purchase(Guid storeId, string supplierName, decimal total)
     {
-        if (total < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(total));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(total);
 
         StoreId = storeId;
         SupplierName = string.IsNullOrWhiteSpace(supplierName)

@@ -10,10 +10,7 @@ public sealed class InventoryBalance : Entity
 
     public InventoryBalance(Guid storeId, Guid productId, decimal initialQuantity = 0)
     {
-        if (initialQuantity < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(initialQuantity));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(initialQuantity);
 
         StoreId = storeId;
         ProductId = productId;
@@ -47,20 +44,11 @@ public sealed class InventoryBalance : Entity
 
     public void SetMinimum(decimal quantity)
     {
-        if (quantity < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(quantity));
-        }
-
+        ArgumentOutOfRangeException.ThrowIfNegative(quantity);
         MinimumQuantity = quantity;
         Touch();
     }
 
-    private static void EnsurePositive(decimal quantity)
-    {
-        if (quantity <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(quantity));
-        }
-    }
+    private static void EnsurePositive(decimal quantity) =>
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(quantity);
 }

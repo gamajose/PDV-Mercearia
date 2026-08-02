@@ -13,10 +13,7 @@ public sealed class Sale : Entity
 
     public Sale(Guid storeId, Guid terminalId, long number)
     {
-        if (number <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(number));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(number);
 
         StoreId = storeId;
         TerminalId = terminalId;
@@ -42,7 +39,9 @@ public sealed class Sale : Entity
     public void ApplyDiscount(decimal discount)
     {
         EnsureDraft();
-        if (discount < 0 || discount > _items.Sum(item => item.Total))
+        ArgumentOutOfRangeException.ThrowIfNegative(discount);
+
+        if (discount > _items.Sum(item => item.Total))
         {
             throw new ArgumentOutOfRangeException(nameof(discount));
         }

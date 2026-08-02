@@ -10,15 +10,8 @@ public sealed class SaleItem : Entity
 
     internal SaleItem(Guid saleId, Guid productId, string description, decimal quantity, decimal unitPrice)
     {
-        if (quantity <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(quantity));
-        }
-
-        if (unitPrice < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(unitPrice));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(quantity);
+        ArgumentOutOfRangeException.ThrowIfNegative(unitPrice);
 
         SaleId = saleId;
         ProductId = productId;
