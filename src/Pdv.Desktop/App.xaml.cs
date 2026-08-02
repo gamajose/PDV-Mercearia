@@ -1,11 +1,15 @@
+using System.Text.Json;
 using System.Windows;
 using Pdv.Desktop.Configuration;
 using Pdv.Desktop.Services;
+using Pdv.Desktop.Updates;
 
 namespace Pdv.Desktop;
 
 public partial class App : Application
 {
+    private readonly CancellationTokenSource _updateCancellationTokenSource = new();
+
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -91,6 +95,7 @@ public partial class App : Application
             var mainWindow = new MainWindow(client);
             MainWindow = mainWindow;
             mainWindow.Show();
+            _ = MonitorUpdatesAsync(mainWindow, _updateCancellationTokenSource.Token);
         }
         catch (Exception exception)
         {
@@ -100,6 +105,59 @@ public partial class App : Application
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
             Shutdown();
+        }
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        _updateCancellationTokenSource.Cancel();
+        _updateCancellationTokenSource.Dispose();
+        base.OnExit(e);
+    }
+
+    private static async Task MonitorUpdatesAsync(Window owner, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(3), cancellationToken);
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                using var updateService = new ReleaseUpdateService();
+                AvailableUpdate? update = null;
+
+                try
+                {
+                    update = await updateService.GetAvailableUpdateAsync(cancellationToken);
+                }
+                catch (HttpRequestException)
+                {
+                    // A operação do caixa não é interrompida quando a internet está indisponível.
+                }
+                catch (JsonException)
+                {
+                    // Uma resposta inválida será consultada novamente no próximo ciclo.
+                }
+                catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    // Timeout da consulta. O PDV permanece disponível normalmente.
+                }
+
+                if (update is not null)
+                {
+                    var updateWindow = new UpdateWindow(updateService, update)
+                    {
+                        Owner = owner
+                    };
+                    updateWindow.ShowDialog();
+                }
+
+                await Task.Delay(TimeSpan.FromHours(6), cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Encerramento normal da aplicação.
         }
     }
 }
