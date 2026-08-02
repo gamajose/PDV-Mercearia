@@ -1,0 +1,26 @@
+# .NET
+bin/
+obj/
+artifacts/
+TestResults/
+*.user
+*.suo
+*.nupkg
+
+# Local runtime data
+data/
+*.db
+*.db-shm
+*.db-wal
+*.log
+node-settings.json
+desktop-settings.json
+
+# Installer output
+installer/output/
+publish/
+
+# IDE
+.vs/
+.idea/
+.vscode/

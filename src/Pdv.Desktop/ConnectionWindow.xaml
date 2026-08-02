@@ -1,0 +1,53 @@
+<Window x:Class="Pdv.Desktop.ConnectionWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Conectar ao PDV Central"
+        Width="440"
+        Height="350"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="32">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock FontFamily="Segoe Fluent Icons"
+                       Text="&#xE701;"
+                       FontSize="34"
+                       Foreground="{StaticResource PrimaryBrush}" />
+            <TextBlock Text="Conexão da loja"
+                       FontSize="25"
+                       FontWeight="SemiBold"
+                       Margin="0,12,0,4" />
+            <TextBlock Text="Informe o endereço e a chave fornecidos pelo PDV Central."
+                       Foreground="{StaticResource MutedBrush}"
+                       TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Margin="0,18,0,0">
+            <TextBlock Text="Endereço do servidor" FontWeight="SemiBold" />
+            <TextBox x:Name="ServerUrlTextBox" />
+
+            <TextBlock Text="Chave do terminal" FontWeight="SemiBold" />
+            <PasswordBox x:Name="ApiKeyPasswordBox"
+                         Padding="12,9"
+                         Margin="0,5,0,12"
+                         BorderBrush="#D8DEEA" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+            <Button Content="Cancelar"
+                    Padding="18,10"
+                    Margin="0,0,8,0"
+                    Click="Cancel_Click" />
+            <Button Content="Conectar"
+                    Style="{StaticResource PrimaryButtonStyle}"
+                    Click="Connect_Click" />
+        </StackPanel>
+    </Grid>
+</Window>
