@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111827">
+  <title>PDV Gama</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <svg class="svg-sprite" aria-hidden="true">
+    <symbol id="i-grid" viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24"><path d="m4 7 8-4 8 4v10l-8 4-8-4zm0 0 8 4 8-4M12 11v10"/></symbol>
+    <symbol id="i-store" viewBox="0 0 24 24"><path d="M3 9 5 3h14l2 6M5 13v8h14v-8M9 21v-6h6v6M3 9c0 2 3 3 4.5 1 1.5 2 4.5 2 6 0 1.5 2 4.5 2 6 0 1.5 2 4.5 1 4.5-1"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+  </svg>
+
+  <main id="loading-screen" class="center-screen">
+    <div class="brand-mark">G</div>
+    <p>Carregando o PDV…</p>
+  </main>
+
+  <main id="setup-screen" class="auth-screen hidden">
+    <section class="auth-card setup-card">
+      <header class="auth-header">
+        <div class="brand-mark">G</div>
+        <div>
+          <span class="eyebrow">Primeiro acesso</span>
+          <h1>Configure sua empresa</h1>
+          <p>Nenhum dado foi criado. Preencha as informações reais para iniciar.</p>
+        </div>
+      </header>
+      <form id="setup-form" class="form-grid">
+        <label>Razão social<input name="legalName" required maxlength="160" autocomplete="organization"></label>
+        <label>Nome fantasia<input name="tradeName" required maxlength="120"></label>
+        <label>CPF ou CNPJ <span>(opcional)</span><input name="document" maxlength="32"></label>
+        <label>Segmento
+          <select name="segment" required>
+            <option value="">Selecione</option>
+            <option value="Grocery">Mercearia</option>
+            <option value="Supermarket">Supermercado</option>
+            <option value="ProduceMarket">Hortifruti</option>
+            <option value="ButcherShop">Açougue</option>
+            <option value="Bakery">Padaria</option>
+            <option value="ConvenienceStore">Conveniência</option>
+            <option value="GeneralRetail">Comércio geral</option>
+          </select>
+        </label>
+        <div class="form-divider"><span>Primeira filial</span></div>
+        <label>Código da filial<input name="storeCode" required maxlength="20" placeholder="Ex.: MATRIZ"></label>
+        <label>Nome da filial<input name="storeName" required maxlength="120" placeholder="Ex.: Loja Centro"></label>
+        <div class="form-divider"><span>Administrador</span></div>
+        <label>Nome completo<input name="administratorName" required maxlength="120" autocomplete="name"></label>
+        <label>Usuário<input name="login" required maxlength="80" autocomplete="username"></label>
+        <label>Senha<input name="password" type="password" required minlength="8" autocomplete="new-password"></label>
+        <label>Confirmar senha<input name="confirmPassword" type="password" required minlength="8" autocomplete="new-password"></label>
+        <div class="form-actions full-width">
+          <button class="primary-button" type="submit">Concluir configuração</button>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <main id="login-screen" class="auth-screen hidden">
+    <section class="auth-card login-card">
+      <div class="brand-mark">G</div>
+      <span class="eyebrow">PDV Gama</span>
+      <h1>Entre na sua conta</h1>
+      <p id="login-message">Use o usuário criado na configuração inicial.</p>
+      <form id="login-form" class="stack-form">
+        <label>Usuário<input name="login" required autocomplete="username" autofocus></label>
+        <label>Senha<input name="password" type="password" required autocomplete="current-password"></label>
+        <label class="checkbox-row"><input name="rememberMe" type="checkbox"> Manter conectado neste computador</label>
+        <button class="primary-button" type="submit">Entrar</button>
+      </form>
+    </section>
+  </main>
+
+  <div id="app-shell" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="brand-mark small">G</div>
+      <nav id="main-nav" aria-label="Navegação principal">
+        <button data-view="dashboard" data-permission="dashboard.view" title="Painel"><svg><use href="#i-grid"/></svg><span>Painel</span></button>
+        <button data-view="products" data-permission="products.view" title="Produtos"><svg><use href="#i-box"/></svg><span>Produtos</span></button>
+        <button data-view="stores" data-permission="stores.manage" title="Filiais"><svg><use href="#i-store"/></svg><span>Filiais</span></button>
+        <button data-view="users" data-permission="users.manage" title="Usuários"><svg><use href="#i-users"/></svg><span>Usuários</span></button>
+      </nav>
+      <button id="logout-button" class="logout-button" title="Sair"><svg><use href="#i-logout"/></svg><span>Sair</span></button>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div>
+          <span id="company-name" class="eyebrow"></span>
+          <h1 id="page-title">Painel</h1>
+          <p id="store-name" class="muted"></p>
+        </div>
+        <div class="user-chip">
+          <span id="user-initials"></span>
+          <div><strong id="user-name"></strong><small>Conectado</small></div>
+        </div>
+      </header>
+
+      <section id="dashboard-view" class="view hidden">
+        <div class="metric-grid">
+          <article class="metric-card"><span>Vendas hoje</span><strong id="metric-sales">R$ 0,00</strong></article>
+          <article class="metric-card"><span>Operações</span><strong id="metric-transactions">0</strong></article>
+          <article class="metric-card"><span>Produtos</span><strong id="metric-products">0</strong></article>
+          <article class="metric-card"><span>Estoque baixo</span><strong id="metric-low-stock">0</strong></article>
+        </div>
+        <div class="content-grid dashboard-grid">
+          <article class="panel">
+            <header class="panel-header"><div><h2>Movimento do dia</h2><p>Valores reais registrados nesta filial</p></div></header>
+            <div id="hourly-chart" class="chart-empty">Nenhuma venda registrada hoje.</div>
+          </article>
+          <article class="panel">
+            <header class="panel-header"><div><h2>Últimas vendas</h2><p>Movimento mais recente</p></div></header>
+            <div id="recent-sales" class="empty-state">Nenhuma venda registrada.</div>
+          </article>
+        </div>
+      </section>
+
+      <section id="products-view" class="view hidden">
+        <div class="section-heading"><div><h2>Produtos</h2><p>Catálogo e estoque da filial atual</p></div><button id="new-product-button" class="primary-button compact hidden"><svg><use href="#i-plus"/></svg>Novo produto</button></div>
+        <form id="product-form" class="panel form-grid hidden">
+          <label>SKU<input name="sku" required maxlength="60"></label>
+          <label>Código de barras<input name="barcode" maxlength="60"></label>
+          <label class="wide-field">Nome<input name="name" required maxlength="160"></label>
+          <label>Unidade<select name="unit"><option value="Unit">Unidade</option><option value="Kilogram">Quilograma</option><option value="Gram">Grama</option><option value="Liter">Litro</option><option value="Meter">Metro</option></select></label>
+          <label>Custo<input name="costPrice" type="number" min="0" step="0.01" value="0"></label>
+          <label>Preço de venda<input name="salePrice" type="number" min="0" step="0.01" required></label>
+          <label>Estoque inicial<input name="initialQuantity" type="number" min="0" step="0.001" value="0"></label>
+          <label>Estoque mínimo<input name="minimumQuantity" type="number" min="0" step="0.001" value="0"></label>
+          <div class="form-actions full-width"><button class="secondary-button" type="button" data-cancel="product">Cancelar</button><button class="primary-button" type="submit">Salvar produto</button></div>
+        </form>
+        <div class="panel table-panel"><div id="products-table"></div></div>
+      </section>
+
+      <section id="stores-view" class="view hidden">
+        <div class="section-heading"><div><h2>Filiais</h2><p>Somente filiais cadastradas por você</p></div><button id="new-store-button" class="primary-button compact"><svg><use href="#i-plus"/></svg>Nova filial</button></div>
+        <form id="store-form" class="panel form-grid hidden">
+          <label>Código<input name="code" required maxlength="20"></label>
+          <label class="wide-field">Nome da filial<input name="name" required maxlength="120"></label>
+          <div class="form-actions full-width"><button class="secondary-button" type="button" data-cancel="store">Cancelar</button><button class="primary-button" type="submit">Salvar filial</button></div>
+        </form>
+        <div class="panel table-panel"><div id="stores-table"></div></div>
+      </section>
+
+      <section id="users-view" class="view hidden">
+        <div class="section-heading"><div><h2>Usuários e permissões</h2><p>Controle o acesso de cada pessoa</p></div><button id="new-user-button" class="primary-button compact"><svg><use href="#i-plus"/></svg>Novo usuário</button></div>
+        <form id="user-form" class="panel form-grid hidden">
+          <label>Nome<input name="displayName" required maxlength="120"></label>
+          <label>Usuário<input name="login" required maxlength="80"></label>
+          <label>Senha inicial<input name="password" type="password" required minlength="8"></label>
+          <label>Filial<select id="user-store-select" name="storeId"><option value="">Sem filial fixa</option></select></label>
+          <fieldset class="permission-fieldset full-width"><legend>Permissões</legend><div id="permission-options" class="permission-grid"></div></fieldset>
+          <div class="form-actions full-width"><button class="secondary-button" type="button" data-cancel="user">Cancelar</button><button class="primary-button" type="submit">Criar usuário</button></div>
+        </form>
+        <div class="panel table-panel"><div id="users-table"></div></div>
+      </section>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>
