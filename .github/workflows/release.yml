@@ -65,6 +65,8 @@ jobs:
         run: |
           dotnet publish src/Pdv.StoreNode/Pdv.StoreNode.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/store-node -p:Version=${{ steps.version.outputs.value }}
           dotnet publish src/Pdv.Desktop/Pdv.Desktop.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/desktop -p:Version=${{ steps.version.outputs.value }}
+          dotnet publish src/Pdv.Web/Pdv.Web.csproj --configuration Release --runtime linux-x64 --self-contained true --output artifacts/web-linux -p:Version=${{ steps.version.outputs.value }}
+          tar.exe -czf "artifacts/pdv-gama-web-${{ steps.version.outputs.value }}-linux-x64.tar.gz" -C artifacts/web-linux .
 
       - name: Build installers
         if: steps.version.outputs.publish == 'true'
@@ -81,7 +83,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create "${{ steps.version.outputs.tag }}" installer/output/*.exe `
+          gh release create "${{ steps.version.outputs.tag }}" installer/output/*.exe artifacts/pdv-gama-web-${{ steps.version.outputs.value }}-linux-x64.tar.gz `
             --repo "${{ github.repository }}" `
             --target "${{ github.sha }}" `
             --title "PDV Gama ${{ steps.version.outputs.value }}" `
