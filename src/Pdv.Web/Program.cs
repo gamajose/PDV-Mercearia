@@ -1,6 +1,8 @@
+using System.Globalization;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Data.Sqlite;
 
@@ -254,8 +256,8 @@ sealed class Database(string connectionString)
     }
 
     private SqliteConnection Open() => new(connectionString);
-    private async Task<T> ScalarAsync<T>(string sql) { await using var c = Open(); await c.OpenAsync(); var cmd = c.CreateCommand(); cmd.CommandText = sql; return (T)Convert.ChangeType(await cmd.ExecuteScalarAsync() ?? 0, typeof(T)); }
-    private static async Task<long> CountAsync(SqliteConnection c, string table) { var cmd = c.CreateCommand(); cmd.CommandText = $"SELECT COUNT(*) FROM {table}"; return Convert.ToInt64(await cmd.ExecuteScalarAsync()); }
+    private async Task<T> ScalarAsync<T>(string sql) { await using var c = Open(); await c.OpenAsync(); var cmd = c.CreateCommand(); cmd.CommandText = sql; return (T)Convert.ChangeType(await cmd.ExecuteScalarAsync() ?? 0, typeof(T), CultureInfo.InvariantCulture); }
+    private static async Task<long> CountAsync(SqliteConnection c, string table) { var cmd = c.CreateCommand(); cmd.CommandText = $"SELECT COUNT(*) FROM {table}"; return Convert.ToInt64(await cmd.ExecuteScalarAsync(), CultureInfo.InvariantCulture); }
     private static async Task<string?[]> QuerySingleAsync(SqliteConnection c, string sql) { var cmd = c.CreateCommand(); cmd.CommandText = sql; await using var r = await cmd.ExecuteReaderAsync(); await r.ReadAsync(); var values = new string?[r.FieldCount]; for (var i=0;i<r.FieldCount;i++) values[i] = r.IsDBNull(i) ? null : r.GetValue(i).ToString(); return values; }
     private static async Task ExecuteAsync(SqliteConnection c, System.Data.Common.DbTransaction? tx, string sql, params (string Name, object? Value)[] p) { var cmd = c.CreateCommand(); cmd.CommandText = sql; cmd.Transaction = (SqliteTransaction?)tx; foreach (var item in p) cmd.Parameters.AddWithValue(item.Name, item.Value?.ToString() ?? (object)DBNull.Value); await cmd.ExecuteNonQueryAsync(); }
     private static AppUser ReadUser(SqliteDataReader r) => new(Guid.Parse(r.GetString(0)), r.GetString(1), r.GetString(2), r.GetString(5), JsonSerializer.Deserialize<string[]>(r.GetString(6)) ?? []);
@@ -272,9 +274,9 @@ static class PermissionCatalog
     public static readonly string[] All = ["dashboard.view","sales.view","sales.create","products.view","products.manage","inventory.view","inventory.manage","purchases.view","purchases.manage","reports.view","company.manage","stores.manage","users.manage"];
 }
 
-record AppUser(Guid Id, string Name, string Login, string Role, string[] Permissions);
-record SetupRequest(string CompanyName, string? Document, string Segment, string AdminName, string Login, string Password);
-record LoginRequest(string Login, string Password);
-record CreateUserRequest(string Name, string Login, string Password, string Role, string[] Permissions);
-record UpdatePermissionsRequest(string Role, string[] Permissions);
+sealed record AppUser(Guid Id, string Name, string Login, string Role, string[] Permissions);
+sealed record SetupRequest(string CompanyName, string? Document, string Segment, string AdminName, string Login, string Password);
+sealed record LoginRequest(string Login, string Password);
+sealed record CreateUserRequest(string Name, string Login, string Password, string Role, string[] Permissions);
+sealed record UpdatePermissionsRequest(string Role, string[] Permissions);
 public partial class Program;
