@@ -61,6 +61,10 @@
                             ToolTip="Relatórios"
                             Style="{StaticResource IconButtonStyle}"
                             Click="Reports_Click" />
+                    <Button Content="&#xE896;"
+                            ToolTip="Etiquetas e Balcão"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="Labels_Click" />
                 </StackPanel>
 
                 <Button Grid.Row="2"

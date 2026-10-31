@@ -131,7 +131,19 @@ public partial class MainWindow : Window
         _ = RefreshAsync();
     }
 
-    private void Sales_Click(object sender, RoutedEventArgs e) => ShowPlaceholder("Nova venda", "\uE719");
+    private void Sales_Click(object sender, RoutedEventArgs e)
+    {
+        var pdv = new PdvWindow(_client) { Owner = this };
+        pdv.ShowDialog();
+        _ = RefreshAsync();
+    }
+
+    private void Labels_Click(object sender, RoutedEventArgs e)
+    {
+        var labels = new LabelsWindow(_client) { Owner = this };
+        labels.ShowDialog();
+    }
+
     private void Products_Click(object sender, RoutedEventArgs e) => ShowPlaceholder("Produtos", "\uE7C3");
     private void Inventory_Click(object sender, RoutedEventArgs e) => ShowPlaceholder("Estoque", "\uE7B8");
     private void Purchases_Click(object sender, RoutedEventArgs e) => ShowPlaceholder("Compras", "\uE8CB");

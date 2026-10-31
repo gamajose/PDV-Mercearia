@@ -93,10 +93,28 @@ public partial class App : Application, IDisposable
                 client = new PdvApiClient(settings);
             }
 
-            var mainWindow = new MainWindow(client);
-            MainWindow = mainWindow;
-            mainWindow.Show();
-            _ = MonitorUpdatesAsync(mainWindow, _updateCancellationTokenSource.Token);
+            var isPdvMode = e.Args.Any(a => string.Equals(a, "--mode=pdv", StringComparison.OrdinalIgnoreCase) ||
+                                            string.Equals(a, "-pdv", StringComparison.OrdinalIgnoreCase));
+            var isLabelsMode = e.Args.Any(a => string.Equals(a, "--mode=labels", StringComparison.OrdinalIgnoreCase) ||
+                                               string.Equals(a, "-labels", StringComparison.OrdinalIgnoreCase));
+
+            Window activeWindow;
+            if (isPdvMode)
+            {
+                activeWindow = new PdvWindow(client);
+            }
+            else if (isLabelsMode)
+            {
+                activeWindow = new LabelsWindow(client);
+            }
+            else
+            {
+                activeWindow = new MainWindow(client);
+            }
+
+            MainWindow = activeWindow;
+            activeWindow.Show();
+            _ = MonitorUpdatesAsync(activeWindow, _updateCancellationTokenSource.Token);
         }
         catch (Exception exception)
         {

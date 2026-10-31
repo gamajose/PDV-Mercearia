@@ -23,4 +23,10 @@ public sealed class Purchase : Entity
     public string SupplierName { get; private set; } = string.Empty;
     public decimal Total { get; private set; }
     public DateTimeOffset PurchasedAt { get; private set; } = DateTimeOffset.UtcNow;
+
+    public void SetPurchasedAt(DateTimeOffset purchasedAt)
+    {
+        PurchasedAt = purchasedAt;
+        Touch();
+    }
 }
