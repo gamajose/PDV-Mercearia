@@ -609,3 +609,415 @@ body { background: var(--bg-main); color: var(--text-main); min-height: 100vh; o
   letter-spacing: 5px;
   font-weight: 700;
 }
+
+
+/* =====================================================================
+   ODOO-STYLE POINT OF SALE ARCHITECTURE & ENHANCEMENTS
+   ===================================================================== */
+.odoo-pos-container {
+  display: grid;
+  grid-template-columns: 520px 1fr;
+  gap: 16px;
+  background: var(--pdv-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  min-height: 84vh;
+}
+@media (max-width: 1280px) {
+  .odoo-pos-container { grid-template-columns: 1fr; }
+}
+
+/* Abas de Múltiplos Pedidos / Comandas em Aberto (Odoo Order Tabs) */
+.pos-order-tabs-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #090e1a;
+  padding: 6px;
+  border-radius: 8px 8px 0 0;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  overflow-x: auto;
+}
+.order-tab {
+  background: #151f38;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.order-tab:hover { background: #1e2c4f; color: #fff; }
+.order-tab.active {
+  background: var(--accent);
+  border-color: #60a5fa;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(37,99,235,0.4);
+}
+.order-tab-add {
+  background: #101b30;
+  border: 1px dashed var(--border-light);
+  color: #38bdf8;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.order-tab-add:hover { background: #1a2949; color: #fff; }
+
+/* Tabela de Itens e Linha Selecionada */
+.odoo-cart-wrapper {
+  background: #080d1a;
+  border: 1px solid var(--border);
+  overflow-y: auto;
+  max-height: 38vh;
+  min-height: 240px;
+}
+.odoo-cart-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.odoo-cart-table th {
+  position: sticky;
+  top: 0;
+  background: #111c34;
+  color: #94a3b8;
+  padding: 9px 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  z-index: 10;
+}
+.odoo-cart-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid #14203b;
+  color: #f1f5f9;
+  cursor: pointer;
+}
+.odoo-cart-table tr:hover td { background: rgba(56, 189, 248, 0.08); }
+.odoo-cart-table tr.selected td {
+  background: rgba(37, 99, 235, 0.25);
+  border-left: 3px solid #38bdf8;
+}
+
+/* NumPad & Action Controls Odoo Style */
+.odoo-numpad-container {
+  display: grid;
+  grid-template-columns: 1fr 140px;
+  gap: 10px;
+  margin-top: 10px;
+}
+.odoo-numpad {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.numpad-btn {
+  background: #151e36;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 12px 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s;
+  user-select: none;
+}
+.numpad-btn:hover { background: #233157; border-color: var(--accent-light); }
+.numpad-btn.mode-btn {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: #1c2847;
+  color: #94a3b8;
+}
+.numpad-btn.mode-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: #60a5fa;
+}
+.numpad-btn.action-danger { color: #ef4444; }
+
+/* Barra de Ações Rápidas do Carrinho */
+.odoo-action-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.odoo-strip-btn {
+  background: #16223e;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: #e2e8f0;
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex: 1;
+  transition: all 0.15s;
+}
+.odoo-strip-btn:hover { background: #23355f; border-color: var(--accent-light); }
+.odoo-strip-btn.pay-btn {
+  background: #059669;
+  border-color: #10b981;
+  color: #fff;
+  font-size: 14px;
+}
+.odoo-strip-btn.pay-btn:hover { background: #047857; }
+
+/* Ribbon de Categorias Odoo */
+.odoo-cat-ribbon {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+.cat-pill {
+  background: #141f38;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.cat-pill:hover { background: #1e2d50; color: #fff; }
+.cat-pill.active { background: var(--accent); border-color: #60a5fa; color: #fff; }
+
+/* Grade de Produtos Odoo */
+.odoo-product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  overflow-y: auto;
+  max-height: 70vh;
+  padding-right: 4px;
+}
+.odoo-product-card {
+  background: #131c33;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 110px;
+  transition: all 0.15s;
+  user-select: none;
+}
+.odoo-product-card:hover {
+  background: #1c2847;
+  border-color: var(--accent-light);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+.odoo-prod-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.odoo-prod-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: auto;
+}
+.odoo-prod-price {
+  font-size: 14px;
+  font-weight: 800;
+  color: #22c55e;
+  font-family: 'Consolas', monospace;
+}
+.odoo-prod-stock {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+/* Painel de Pagamento Fracionado (Split Payment Odoo) */
+.split-pay-methods-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.split-pay-btn {
+  background: #17233f;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.15s;
+}
+.split-pay-btn:hover { background: #24355f; border-color: var(--accent-light); }
+.split-pay-btn.selected {
+  background: var(--accent);
+  border-color: #60a5fa;
+  box-shadow: 0 0 10px rgba(37,99,235,0.4);
+}
+
+.fast-cash-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.cash-chip {
+  background: #0f1a30;
+  border: 1px solid #233458;
+  border-radius: 6px;
+  color: #38bdf8;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.cash-chip:hover { background: #1c2e56; color: #fff; }
+
+/* =====================================================================
+   CUPOM FISCAL TÉRMICO ESC/POS (80MM) - ESTILO ODOO POS
+   ===================================================================== */
+.thermal-receipt-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.thermal-receipt {
+  width: 360px;
+  max-width: 100%;
+  background: #ffffff;
+  color: #0f172a;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.35;
+  padding: 20px 18px;
+  border-radius: 4px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+  user-select: text;
+}
+.thermal-receipt .receipt-center {
+  text-align: center;
+}
+.thermal-receipt .receipt-bold {
+  font-weight: 700;
+}
+.thermal-receipt .receipt-title {
+  font-size: 14px;
+  font-weight: 800;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  letter-spacing: 0.5px;
+}
+.thermal-receipt .receipt-divider {
+  border-top: 1px dashed #64748b;
+  margin: 8px 0;
+}
+.thermal-receipt table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.thermal-receipt table th {
+  text-align: left;
+  border-bottom: 1px dashed #64748b;
+  padding: 4px 0;
+  color: #0f172a;
+}
+.thermal-receipt table td {
+  padding: 3px 0;
+  color: #0f172a;
+}
+.thermal-receipt .receipt-totals {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 6px;
+}
+.thermal-receipt .total-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.thermal-receipt .grand-total {
+  font-size: 15px;
+  font-weight: 900;
+  border-top: 1px solid #0f172a;
+  border-bottom: 1px solid #0f172a;
+  padding: 5px 0;
+  margin: 6px 0;
+}
+.thermal-receipt .receipt-qr {
+  margin: 12px auto;
+  width: 110px;
+  height: 110px;
+  background: #f8fafc;
+  border: 1px dashed #94a3b8;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #475569;
+  text-align: center;
+  padding: 6px;
+}
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #thermal-receipt-print-area, #thermal-receipt-print-area * {
+    visibility: visible;
+  }
+  #thermal-receipt-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+    background: #fff;
+    color: #000;
+  }
+}

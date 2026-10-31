@@ -36,7 +36,7 @@ function playScannerBeep() {
   }
 }
 
-// Estado Global da Aplicação
+// Estado Global da Aplicação (Arquitetura Inspirada no Odoo ERP & Point of Sale)
 const state = {
   currentRoute: "/admin",
   user: { name: "Administrador Master", login: "admin", role: "Administrador" },
@@ -46,12 +46,34 @@ const state = {
   suppliers: [],
   collaborators: [],
   cashSession: null,
-  // Estado do Carrinho do PDV
-  cart: [],
+  // Arquitetura Multi-Pedidos / Comandas em Aberto (Odoo POS Multi-Orders)
+  orders: [
+    { id: 1, name: "Venda 1", cart: [], customer: null, selectedItemIdx: 0, discountGlobalPct: 0 }
+  ],
+  activeOrderId: 1,
+  activeCategory: "Todos",
+  posSearchQuery: "",
+  numpadMode: "qty", // 'qty' | 'disc' | 'price'
   activeScaleWeight: 0.0,
   lastScannedItem: null,
-  activeCustomer: null,
+  // Estado transitório da tela de pagamentos múltiplos / fracionados (Odoo Split Payments)
+  paymentLines: [],
 };
+
+// Helper: Retorna o pedido ativo atual (Odoo Order)
+function getActiveOrder() {
+  let ord = state.orders.find(o => o.id === state.activeOrderId);
+  if (!ord) {
+    if (state.orders.length === 0) {
+      ord = { id: 1, name: "Venda 1", cart: [], customer: null, selectedItemIdx: 0, discountGlobalPct: 0 };
+      state.orders.push(ord);
+    } else {
+      ord = state.orders[0];
+    }
+    state.activeOrderId = ord.id;
+  }
+  return ord;
+}
 
 // =====================================================================
 // ROTEADOR E NAVEGAÇÃO
@@ -309,6 +331,8 @@ function renderCurrentModule() {
   switch (state.currentRoute) {
     case "/pdv":
       return renderPdvModule();
+    case "/vendas":
+      return renderSalesManagerModule();
     case "/produtos":
       return renderProductsModule();
     case "/clientes":
@@ -1837,105 +1861,438 @@ async function handleSuprimentoSubmit(e) {
 }
 
 // =====================================================================
-// MÓDULO 5: FRENTE DE CAIXA PDV (TECLADO ÁGIL, BALANÇA & LEITOR)
+// MÓDULO 5: FRENTE DE CAIXA PDV (ARQUITETURA AVANÇADA ODOO POINT OF SALE)
+// Recursos Odoo: Multi-Pedidos / Comandas, Grid Visual de Produtos por Categoria,
+// Teclado NumPad Interativo, Pagamento Fracionado (Split Payments) e Entrada/Saída de Caixa
 // =====================================================================
+
 function renderPdvModule() {
-  const subtotal = state.cart.reduce((acc, it) => acc + it.total, 0);
+  const order = getActiveOrder();
+  const subtotal = order.cart.reduce((acc, it) => acc + (it.total || 0), 0);
+  const totalItems = order.cart.reduce((acc, it) => acc + (it.quantity || 0), 0);
+
+  // Filtra produtos para a grade visual (Odoo Product Grid)
+  const categoryFilter = state.activeCategory || "Todos";
+  const searchFilter = (state.posSearchQuery || "").toLowerCase().trim();
+
+  let filteredProducts = state.products || [];
+  if (categoryFilter !== "Todos") {
+    filteredProducts = filteredProducts.filter(p => (p.department || "Mercearia") === categoryFilter || (p.category || "") === categoryFilter);
+  }
+  if (searchFilter) {
+    filteredProducts = filteredProducts.filter(p =>
+      (p.name && p.name.toLowerCase().includes(searchFilter)) ||
+      (p.sku && p.sku.toLowerCase().includes(searchFilter)) ||
+      (p.barcode && p.barcode.includes(searchFilter)) ||
+      (p.pluCode && p.pluCode.includes(searchFilter))
+    );
+  }
+
+  const selectedItem = order.cart[order.selectedItemIdx] || null;
+
+  const categories = [
+    "Todos", "Mercearia", "Carnes & Açougue", "Hortifruti",
+    "Laticínios & Frios", "Bebidas", "Padaria",
+    "Higiene & Perfumaria", "Limpeza", "Vestuário"
+  ];
 
   return `
-    <div class="pdv-screen">
-      <!-- Painel Esquerdo do PDV: Scanner & Carrinho -->
-      <div class="pdv-main-panel">
-        <div class="pdv-terminal-banner">
-          <div>Operador: <strong>${state.user.name}</strong> | Terminal 01</div>
-          <div>Cliente: <strong>${state.activeCustomer ? state.activeCustomer.name : "Consumidor Final"}</strong></div>
+    <div class="odoo-pos-container">
+      <!-- COLUNA DA ESQUERDA: PEDIDO / COMANDAS, TICKET, TOTAL E TECLADO NUMPAD (ODOO CART) -->
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <!-- 1. Abas de Múltiplos Pedidos / Comandas em Aberto (Odoo Order Tabs) -->
+        <div class="pos-order-tabs-bar">
+          ${state.orders.map(o => `
+            <div class="order-tab ${o.id === state.activeOrderId ? 'active' : ''}" onclick="switchOrderTab(${o.id})">
+              <span>${o.name} (${o.cart.length})</span>
+              ${state.orders.length > 1 ? `<span style="margin-left:6px; font-weight:800; color:#ef4444;" onclick="closeOrderTab(${o.id}, event)">✕</span>` : ''}
+            </div>
+          `).join("")}
+          <button class="order-tab-add" title="Abrir nova comanda / pedido em paralelo" onclick="addNewOrderTab()">+ Nova Venda</button>
         </div>
 
-        <div class="pdv-scanner-row">
-          <div class="pdv-scale-box">
-            <div class="pdv-scale-val">${state.activeScaleWeight.toFixed(3)} kg</div>
-            <div class="pdv-scale-label">Balança Toledo</div>
+        <!-- 2. Barra de Identificação do Cliente / Parceiro Odoo -->
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#101a30; border:1px solid var(--border); border-radius:6px; padding:8px 12px; font-size:12px;">
+          <div>
+            Cliente: <strong style="color:#38bdf8;">${order.customer ? order.customer.name : "Consumidor Final"}</strong>
+            ${order.customer && order.customer.creditLimit ? `<span class="badge badge-green" style="margin-left:6px;">Limite: ${fmtMoeda(order.customer.creditLimit - (order.customer.currentDebt || 0))}</span>` : ''}
           </div>
-
-          <input type="text" id="pdv-barcode-input" class="pdv-scanner-input" placeholder="Bipe o código de barras ou digite o código/PLU..." autofocus onkeydown="handlePdvInputKey(event)" />
-
-          <button class="btn btn-secondary" onclick="triggerWeighingAction()">Pesar (F5)</button>
+          <div style="display:flex; gap:6px;">
+            <button class="btn btn-outline btn-sm" onclick="openCustomerIdentifyModal()">${order.customer ? "Trocar" : "Identificar (F4)"}</button>
+            ${order.customer ? `<button class="btn btn-danger btn-sm" onclick="removeCustomerFromOrder()">✕</button>` : ''}
+          </div>
         </div>
 
-        <div class="pdv-cart-wrap">
-          <table class="pdv-cart-table">
+        <!-- 3. Ticket / Tabela de Itens Lançados -->
+        <div class="odoo-cart-wrapper">
+          <table class="odoo-cart-table">
             <thead>
               <tr>
                 <th>Item</th>
-                <th>Código</th>
-                <th>Descrição do Produto</th>
-                <th class="text-right">Qtd / Peso</th>
+                <th>Descrição</th>
+                <th class="text-right">Qtd</th>
                 <th class="text-right">Unitário</th>
+                <th class="text-center">Desc %</th>
                 <th class="text-right">Total</th>
                 <th class="text-center">✕</th>
               </tr>
             </thead>
             <tbody>
-              ${state.cart.length === 0
-                ? `<tr><td colspan="7" class="text-center" style="padding:40px; color:#64748b;">Nenhum item lançado. Passe o código no leitor ou pressione F3 para consultar.</td></tr>`
-                : state.cart.map((it, idx) => `
-                  <tr class="${idx === state.cart.length - 1 ? 'highlight' : ''}">
+              ${order.cart.length === 0
+                ? `<tr><td colspan="7" class="text-center" style="padding:40px; color:#64748b;">Nenhum item lançado. Bipe com o leitor ou clique nos produtos ao lado.</td></tr>`
+                : order.cart.map((it, idx) => `
+                  <tr class="${idx === order.selectedItemIdx ? 'selected' : ''}" onclick="selectCartItem(${idx})">
                     <td>${idx + 1}</td>
-                    <td><code>${it.sku}</code></td>
-                    <td><strong>${it.name}</strong></td>
+                    <td>
+                      <div><strong>${it.name}</strong></div>
+                      ${it.isWholesale ? `<small style="color:#38bdf8; font-weight:700;">★ Preço Atacado Aplicado</small>` : ''}
+                    </td>
                     <td class="text-right">${fmtNum(it.quantity, it.isWeighable ? 3 : 0)} ${it.unit}</td>
                     <td class="text-right">${fmtMoeda(it.unitPrice)}</td>
-                    <td class="text-right"><strong style="color:#38bdf8;">${fmtMoeda(it.total)}</strong></td>
-                    <td class="text-center"><button class="btn btn-danger btn-sm" onclick="removeCartItem(${idx})">✕</button></td>
+                    <td class="text-center">${it.discountPct > 0 ? `${fmtNum(it.discountPct, 0)}%` : "-"}</td>
+                    <td class="text-right"><strong style="color:#22c55e;">${fmtMoeda(it.total)}</strong></td>
+                    <td class="text-center"><button class="btn btn-danger btn-sm" onclick="removeCartItem(${idx}, event)">✕</button></td>
                   </tr>
                 `).join("")}
             </tbody>
           </table>
         </div>
+
+        <!-- 4. Totalizador e Item em Edição -->
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#040711; border:2px solid #22c55e; border-radius:8px; padding:12px 18px;">
+          <div>
+            <span style="font-size:11px; color:#86efac; text-transform:uppercase; font-weight:700;">Subtotal (${totalItems} itens)</span>
+            <div style="font-size:12px; color:#94a3b8;">
+              ${selectedItem ? `Item ativo: <strong>${selectedItem.name}</strong>` : 'Nenhum item selecionado'}
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:32px; font-weight:900; color:#22c55e; font-family:'Consolas', monospace; line-height:1;">
+              ${fmtMoeda(subtotal)}
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. NumPad Interativo Odoo & Barra de Ações Rápidas -->
+        <div class="odoo-numpad-container">
+          <div class="odoo-numpad">
+            <button class="numpad-btn" onclick="handleNumpadDigit('1')">1</button>
+            <button class="numpad-btn" onclick="handleNumpadDigit('2')">2</button>
+            <button class="numpad-btn" onclick="handleNumpadDigit('3')">3</button>
+            <button class="numpad-btn mode-btn ${state.numpadMode === 'qty' ? 'active' : ''}" onclick="setNumpadMode('qty')">Qtd</button>
+
+            <button class="numpad-btn" onclick="handleNumpadDigit('4')">4</button>
+            <button class="numpad-btn" onclick="handleNumpadDigit('5')">5</button>
+            <button class="numpad-btn" onclick="handleNumpadDigit('6')">6</button>
+            <button class="numpad-btn mode-btn ${state.numpadMode === 'disc' ? 'active' : ''}" onclick="setNumpadMode('disc')">Desc %</button>
+
+            <button class="numpad-btn" onclick="handleNumpadDigit('7')">7</button>
+            <button class="numpad-btn" onclick="handleNumpadDigit('8')">8</button>
+            <button class="numpad-btn" onclick="handleNumpadDigit('9')">9</button>
+            <button class="numpad-btn mode-btn ${state.numpadMode === 'price' ? 'active' : ''}" onclick="setNumpadMode('price')">Preço</button>
+
+            <button class="numpad-btn" onclick="handleNumpadDigit('.')">.</button>
+            <button class="numpad-btn" onclick="handleNumpadDigit('0')">0</button>
+            <button class="numpad-btn action-danger" onclick="handleNumpadBackspace()">⌫</button>
+            <button class="numpad-btn action-danger" onclick="removeSelectedCartItem()">✕ Item</button>
+          </div>
+
+          <div class="odoo-action-strip">
+            <button class="odoo-strip-btn pay-btn" onclick="openOdooPaymentModal()">
+              <strong>PAGAR (F12)</strong>
+              <small>Múltiplas Formas</small>
+            </button>
+            <button class="odoo-strip-btn" onclick="triggerWeighingAction()">
+              <span>Balança (F5)</span>
+              <small>${state.activeScaleWeight.toFixed(3)} kg</small>
+            </button>
+            <button class="odoo-strip-btn" onclick="openCashInOutModal()">
+              <span>Entrada / Saída</span>
+              <small>Gaveta</small>
+            </button>
+            <button class="odoo-strip-btn" style="color:#ef4444;" onclick="cancelCurrentSale()">
+              <span>Cancelar (F7)</span>
+            </button>
+          </div>
+        </div>
       </div>
 
-      <!-- Painel Direito do PDV: Totalizador e Teclas de Atalho -->
-      <div class="pdv-side-panel">
-        <div class="pdv-total-card">
-          <span>SUBTOTAL DA VENDA</span>
-          <strong>${fmtMoeda(subtotal)}</strong>
+      <!-- COLUNA DA DIREITA: SCANNER, PESAGEM, CATEGORIAS & GRADE VISUAL DE PRODUTOS (ODOO PRODUCT TILES) -->
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <!-- 1. Scanner de Código de Barras & Busca Integrada -->
+        <div style="display:grid; grid-template-columns:1fr 140px; gap:10px;">
+          <input type="text" id="pdv-barcode-input" class="pdv-scanner-input" placeholder="Bipe o código de barras, SKU, PLU ou digite para filtrar..." value="${state.posSearchQuery}" oninput="handlePosSearchInput(this.value)" onkeydown="handlePdvInputKey(event)" autofocus />
+          <button class="btn btn-secondary" onclick="triggerDrawer()">Abrir Gaveta (F6)</button>
         </div>
 
-        <div class="pdv-item-preview">
-          ${state.lastScannedItem ? `
-            <div class="preview-name">${state.lastScannedItem.name}</div>
-            <div class="preview-meta">${state.lastScannedItem.quantity} x ${fmtMoeda(state.lastScannedItem.unitPrice)}</div>
-            <div class="preview-price">${fmtMoeda(state.lastScannedItem.total)}</div>
-          ` : `
-            <div style="color:#64748b; font-size:13px; text-align:center; padding:10px;">Aguardando próximo produto...</div>
-          `}
+        <!-- 2. Ribbon de Categorias Odoo (Pills Horizontais) -->
+        <div class="odoo-cat-ribbon">
+          ${categories.map(cat => `
+            <button class="cat-pill ${cat === state.activeCategory ? 'active' : ''}" onclick="filterPdvCategory('${cat}')">
+              ${cat}
+            </button>
+          `).join("")}
         </div>
 
-        <div class="pdv-shortcuts-grid">
-          <button class="pdv-btn-action" onclick="openProductSearchModal()">
-            <strong>F3</strong>
-            <span>Consultar Produto</span>
-          </button>
-          <button class="pdv-btn-action" onclick="openCustomerIdentifyModal()">
-            <strong>F4</strong>
-            <span>Identificar Cliente</span>
-          </button>
-          <button class="pdv-btn-action" onclick="triggerDrawer()">
-            <strong>F6</strong>
-            <span>Abrir Gaveta</span>
-          </button>
-          <button class="pdv-btn-action" onclick="cancelCurrentSale()">
-            <strong>F7</strong>
-            <span>Cancelar Venda</span>
-          </button>
-          <button class="pdv-btn-action finish" onclick="openPaymentModal()">
-            <strong>FINALIZAR VENDA (F12)</strong>
-            <span>Dinheiro, PIX, Cartão ou Crediário</span>
-          </button>
+        <!-- 3. Grade de Produtos Odoo (Cards Interativos) -->
+        <div class="odoo-product-grid">
+          ${filteredProducts.length === 0
+            ? `<div style="grid-column: span 4; text-align:center; padding:50px; color:#64748b;">Nenhum produto encontrado nesta categoria ou pesquisa.</div>`
+            : filteredProducts.map(p => `
+              <div class="odoo-product-card" onclick="addProductToActiveOrder('${p.id}')">
+                <div>
+                  <div class="odoo-prod-name" title="${p.name}">${p.name}</div>
+                  <div style="font-size:10px; color:#64748b; margin-top:2px;">
+                    SKU: ${p.sku} ${p.isWeighable ? `<span class="badge badge-amber" style="padding:1px 4px; font-size:9px;">PLU: ${p.pluCode || p.sku}</span>` : ''}
+                  </div>
+                </div>
+                <div class="odoo-prod-meta">
+                  <div class="odoo-prod-price">${fmtMoeda(p.salePrice)}</div>
+                  <div class="odoo-prod-stock">
+                    <span class="${p.quantity <= (p.minQuantity || 5) ? 'badge badge-red' : 'badge badge-gray'}" style="font-size:9px;">
+                      ${fmtNum(p.quantity, p.isWeighable ? 2 : 0)} ${p.unit || "UN"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            `).join("")}
         </div>
       </div>
     </div>
   `;
+}
+
+// ---------------------------------------------------------------------
+// GERENCIADOR DE MÚLTIPLOS PEDIDOS / COMANDAS (ODOO ORDER TABS)
+// ---------------------------------------------------------------------
+function switchOrderTab(orderId) {
+  state.activeOrderId = orderId;
+  renderApp();
+}
+
+function addNewOrderTab() {
+  const newId = Date.now();
+  const nextNum = state.orders.length + 1;
+  state.orders.push({
+    id: newId,
+    name: `Venda ${nextNum}`,
+    cart: [],
+    customer: null,
+    selectedItemIdx: 0,
+    discountGlobalPct: 0
+  });
+  state.activeOrderId = newId;
+  renderApp();
+}
+
+function closeOrderTab(orderId, event) {
+  if (event) event.stopPropagation();
+  if (state.orders.length <= 1) {
+    const ord = state.orders[0];
+    if (ord.cart.length > 0 && !confirm("Deseja limpar todos os itens desta venda?")) return;
+    ord.cart = [];
+    ord.customer = null;
+    ord.selectedItemIdx = 0;
+    renderApp();
+    return;
+  }
+
+  const idx = state.orders.findIndex(o => o.id === orderId);
+  if (idx !== -1) {
+    const ord = state.orders[idx];
+    if (ord.cart.length > 0 && !confirm(`Confirma o cancelamento da comanda ${ord.name}?`)) return;
+    state.orders.splice(idx, 1);
+    state.activeOrderId = state.orders[0].id;
+    renderApp();
+  }
+}
+
+function selectCartItem(idx) {
+  const order = getActiveOrder();
+  order.selectedItemIdx = idx;
+  renderApp();
+}
+
+function removeSelectedCartItem() {
+  const order = getActiveOrder();
+  if (order.cart.length === 0) return;
+  order.cart.splice(order.selectedItemIdx, 1);
+  if (order.selectedItemIdx >= order.cart.length) {
+    order.selectedItemIdx = Math.max(0, order.cart.length - 1);
+  }
+  renderApp();
+}
+
+function removeCartItem(idx, event) {
+  if (event) event.stopPropagation();
+  const order = getActiveOrder();
+  order.cart.splice(idx, 1);
+  if (order.selectedItemIdx >= order.cart.length) {
+    order.selectedItemIdx = Math.max(0, order.cart.length - 1);
+  }
+  renderApp();
+}
+
+function cancelCurrentSale() {
+  const order = getActiveOrder();
+  if (order.cart.length === 0) return;
+  if (!confirm(`Confirma o cancelamento de todos os itens da ${order.name}?`)) return;
+  order.cart = [];
+  order.customer = null;
+  order.selectedItemIdx = 0;
+  renderApp();
+}
+
+// ---------------------------------------------------------------------
+// NUMPAD INTERATIVO & EDIÇÃO DE LINHA ODOO
+// ---------------------------------------------------------------------
+function setNumpadMode(mode) {
+  state.numpadMode = mode;
+  renderApp();
+}
+
+function handleNumpadDigit(digit) {
+  const order = getActiveOrder();
+  const item = order.cart[order.selectedItemIdx];
+  if (!item) return;
+
+  let currentVal = "";
+  if (state.numpadMode === "qty") currentVal = String(item.quantity);
+  else if (state.numpadMode === "disc") currentVal = String(item.discountPct || 0);
+  else if (state.numpadMode === "price") currentVal = String(item.unitPrice);
+
+  if (currentVal === "0" && digit !== ".") currentVal = "";
+  if (digit === "." && currentVal.includes(".")) return;
+
+  const newVal = parseFloat(currentVal + digit) || 0;
+  applyNumpadValue(item, newVal);
+}
+
+function handleNumpadBackspace() {
+  const order = getActiveOrder();
+  const item = order.cart[order.selectedItemIdx];
+  if (!item) return;
+
+  let currentStr = "";
+  if (state.numpadMode === "qty") currentStr = String(item.quantity);
+  else if (state.numpadMode === "disc") currentStr = String(item.discountPct || 0);
+  else if (state.numpadMode === "price") currentStr = String(item.unitPrice);
+
+  currentStr = currentStr.slice(0, -1);
+  const newVal = currentStr ? parseFloat(currentStr) || 0 : 0;
+  applyNumpadValue(item, newVal);
+}
+
+function applyNumpadValue(item, val) {
+  if (state.numpadMode === "qty") {
+    item.quantity = Math.max(0.001, val);
+  } else if (state.numpadMode === "disc") {
+    item.discountPct = Math.min(100, Math.max(0, val));
+  } else if (state.numpadMode === "price") {
+    item.unitPrice = Math.max(0, val);
+  }
+
+  // Recalcula total da linha com desconto
+  const base = item.quantity * item.unitPrice;
+  const discAmt = base * ((item.discountPct || 0) / 100);
+  item.total = Math.max(0, base - discAmt);
+  renderApp();
+}
+
+// ---------------------------------------------------------------------
+// RIBBON DE CATEGORIAS & BUSCA ODOO
+// ---------------------------------------------------------------------
+function filterPdvCategory(cat) {
+  state.activeCategory = cat;
+  renderApp();
+}
+
+function handlePosSearchInput(term) {
+  state.posSearchQuery = term;
+  renderApp();
+  setTimeout(() => {
+    const inp = document.getElementById("pdv-barcode-input");
+    if (inp) {
+      inp.focus();
+      inp.selectionStart = inp.selectionEnd = inp.value.length;
+    }
+  }, 10);
+}
+
+function addProductToActiveOrder(prodId) {
+  const p = state.products.find(x => String(x.id) === String(prodId));
+  if (!p) return;
+
+  if (p.isWeighable && p.weighType === 0) {
+    let weight = state.activeScaleWeight;
+    if (weight <= 0) {
+      const inputW = prompt(`Produto pesável (${p.name}). Informe o peso em KG (ou utilize balança acoplada):`, "1.000");
+      weight = parseFloat(inputW) || 1.0;
+    }
+    addCartItem(p, weight, p.salePrice);
+  } else {
+    addCartItem(p, 1, p.salePrice);
+  }
+}
+
+function addCartItem(prod, qty = 1, unitPrice = null) {
+  playScannerBeep();
+  const order = getActiveOrder();
+  const priceToUse = unitPrice != null ? unitPrice : prod.salePrice;
+
+  // Verifica se o item já existe no carrinho para incrementar quantidade
+  const existingIdx = order.cart.findIndex(i => String(i.productId) === String(prod.id));
+  if (existingIdx !== -1) {
+    const it = order.cart[existingIdx];
+    it.quantity += qty;
+
+    // Regra Odoo Pricelists: Ativação automática de Preço Atacado por Volume
+    if (prod.wholesaleMinQty > 0 && prod.wholesalePrice > 0 && it.quantity >= prod.wholesaleMinQty) {
+      it.unitPrice = prod.wholesalePrice;
+      it.isWholesale = true;
+    }
+
+    const base = it.quantity * it.unitPrice;
+    const discAmt = base * ((it.discountPct || 0) / 100);
+    it.total = Math.max(0, base - discAmt);
+    order.selectedItemIdx = existingIdx;
+  } else {
+    let finalPrice = priceToUse;
+    let isWs = false;
+    if (prod.wholesaleMinQty > 0 && prod.wholesalePrice > 0 && qty >= prod.wholesaleMinQty) {
+      finalPrice = prod.wholesalePrice;
+      isWs = true;
+    }
+
+    const newItem = {
+      productId: prod.id,
+      sku: prod.sku,
+      name: prod.name,
+      unit: prod.unit || "UN",
+      isWeighable: prod.isWeighable,
+      quantity: qty,
+      unitPrice: finalPrice,
+      discountPct: 0,
+      total: qty * finalPrice,
+      isWholesale: isWs
+    };
+
+    order.cart.push(newItem);
+    order.selectedItemIdx = order.cart.length - 1;
+    state.lastScannedItem = newItem;
+  }
+
+  renderApp();
+}
+
+function triggerWeighingAction() {
+  const simulated = (Math.random() * 2.5 + 0.3).toFixed(3);
+  state.activeScaleWeight = parseFloat(simulated);
+  renderApp();
+}
+
+function triggerDrawer() {
+  alert("Comando de abertura da gaveta de numerário enviado para a impressora ESC/POS.");
 }
 
 function setupPdvShortcuts() {
@@ -1947,12 +2304,11 @@ function setupPdvShortcuts() {
   window.onkeydown = (e) => {
     if (state.currentRoute !== "/pdv") return;
     if (e.key === "F2") { e.preventDefault(); navigate("/pdv"); }
-    if (e.key === "F3") { e.preventDefault(); openProductSearchModal(); }
     if (e.key === "F4") { e.preventDefault(); openCustomerIdentifyModal(); }
     if (e.key === "F5") { e.preventDefault(); triggerWeighingAction(); }
     if (e.key === "F6") { e.preventDefault(); triggerDrawer(); }
     if (e.key === "F7") { e.preventDefault(); cancelCurrentSale(); }
-    if (e.key === "F12") { e.preventDefault(); openPaymentModal(); }
+    if (e.key === "F12") { e.preventDefault(); openOdooPaymentModal(); }
   };
 }
 
@@ -1963,6 +2319,7 @@ async function handlePdvInputKey(e) {
   if (!val) return;
 
   input.value = "";
+  state.posSearchQuery = "";
   await processBarcodePdv(val);
 }
 
@@ -1980,12 +2337,12 @@ async function processBarcodePdv(code) {
     if (prod) {
       const unitP = prod.salePrice || 1.0;
       const qty = valTotal / unitP;
-      addCartItem(prod, qty, unitP, valTotal);
+      addCartItem(prod, qty, unitP);
       return;
     }
   }
 
-  // Busca padrão por EAN principal, EAN secundário ou SKU
+  // Busca padrão por EAN principal, EAN secundário (embalagem) ou SKU
   let prod = state.products.find(p =>
     p.barcode === code ||
     p.sku === code ||
@@ -1993,270 +2350,243 @@ async function processBarcodePdv(code) {
   );
 
   if (!prod) {
-    alert("Produto não encontrado para o código: " + code);
+    alert("Produto não encontrado para o código de barras ou SKU: " + code);
     return;
   }
 
   if (prod.isWeighable && prod.weighType === 0) {
-    // Pesa no checkout
     let weight = state.activeScaleWeight;
     if (weight <= 0) {
-      const inputW = prompt(`Produto pesável (${prod.name}). Informe o peso em KG (ou utilize balança acoplada):`, "1.250");
+      const inputW = prompt(`Produto pesável (${prod.name}). Informe o peso em KG (ou utilize balança acoplada):`, "1.000");
       weight = parseFloat(inputW) || 1.0;
     }
-    addCartItem(prod, weight, prod.salePrice, weight * prod.salePrice);
+    addCartItem(prod, weight, prod.salePrice);
   } else {
-    addCartItem(prod, 1, prod.salePrice, prod.salePrice);
+    addCartItem(prod, 1, prod.salePrice);
   }
 }
 
-function addCartItem(prod, qty, unitPrice, total) {
-  playScannerBeep();
-  const item = {
-    productId: prod.id,
-    sku: prod.sku,
-    name: prod.name,
-    unit: prod.unit || "UN",
-    isWeighable: prod.isWeighable,
-    quantity: qty,
-    unitPrice: unitPrice,
-    total: total
-  };
-
-  state.cart.push(item);
-  state.lastScannedItem = item;
-  renderApp();
-}
-
-function removeCartItem(idx) {
-  state.cart.splice(idx, 1);
-  renderApp();
-}
-
-function cancelCurrentSale() {
-  if (state.cart.length === 0) return;
-  if (!confirm("Confirma o CANCELAMENTO desta venda em andamento?")) return;
-  state.cart = [];
-  state.lastScannedItem = null;
-  state.activeCustomer = null;
-  renderApp();
-}
-
-function triggerWeighingAction() {
-  const simulated = (Math.random() * 2.5 + 0.3).toFixed(3);
-  state.activeScaleWeight = parseFloat(simulated);
-  renderApp();
-}
-
-function triggerDrawer() {
-  alert("Comando de abertura de gaveta de dinheiro enviado para a impressora ESC/POS.");
-}
-
-// Modal de Pagamento & Conclusão da Venda
-function openPaymentModal() {
-  const subtotal = state.cart.reduce((a, b) => a + b.total, 0);
+// ---------------------------------------------------------------------
+// TELA DE PAGAMENTO FRACIONADO ODOO (SPLIT PAYMENTS & MÚLTIPLAS FORMAS)
+// ---------------------------------------------------------------------
+function openOdooPaymentModal() {
+  const order = getActiveOrder();
+  const subtotal = order.cart.reduce((a, b) => a + (b.total || 0), 0);
   if (subtotal <= 0) {
-    alert("Não há produtos no carrinho do PDV para finalizar a venda.");
+    alert("Não há produtos no pedido atual para finalizar a venda.");
     return;
   }
 
-  const modal = document.getElementById("modal-container");
-  modal.innerHTML = `
-    <div class="modal-overlay">
-      <div class="modal-box">
-        <header class="modal-header">
-          <strong class="modal-title">Finalização de Venda - Frente de Caixa</strong>
-          <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
-        </header>
+  // Inicializa com uma linha de pagamento sugerida cobrindo o total
+  state.paymentLines = [
+    { method: "DINHEIRO", amount: subtotal }
+  ];
 
-        <form onsubmit="handleCompleteSaleSubmit(event, ${subtotal})">
-          <div class="modal-body">
-            <div style="background:#030712; border:1px solid #22c55e; border-radius:8px; padding:16px; text-align:right; margin-bottom:16px;">
-              <span style="font-size:12px; color:#86efac; text-transform:uppercase;">Total da Compra</span>
-              <div style="font-size:32px; font-weight:900; color:#22c55e; font-family:'Consolas', monospace;">${fmtMoeda(subtotal)}</div>
-            </div>
-
-            <div class="form-grid">
-              <div class="form-group">
-                <label>Forma de Pagamento:</label>
-                <select id="pay-method" class="form-control" onchange="togglePayFields(this.value, ${subtotal})">
-                  <option value="DINHEIRO">1. Dinheiro</option>
-                  <option value="PIX">2. PIX Dinâmico</option>
-                  <option value="CARTAO_DEBITO">3. Cartão de Débito</option>
-                  <option value="CARTAO_CREDITO">4. Cartão de Crédito</option>
-                  <option value="CREDIARIO">5. Crediário / Desconto em Folha</option>
-                </select>
-              </div>
-
-              <div class="form-group" id="pay-received-group">
-                <label>Valor Recebido (R$):</label>
-                <input type="number" step="0.01" id="pay-received" class="form-control" value="${subtotal.toFixed(2)}" oninput="calcChange(${subtotal})" style="font-size:16px; font-weight:700;" />
-              </div>
-
-              <div class="form-group" id="pay-change-group">
-                <label>Troco a Devolver:</label>
-                <input type="text" id="pay-change" class="form-control" value="R$ 0,00" readonly style="color:#38bdf8; font-weight:700;" />
-              </div>
-            </div>
-
-            <div id="collab-client-note" style="display:none; background:#1e293b; border-radius:6px; padding:12px; margin-top:14px; font-size:13px; color:#cbd5e1;">
-              Venda a prazo para Colaborador/Cliente identificado: <strong>${state.activeCustomer ? state.activeCustomer.name : "Nenhum cliente selecionado"}</strong>.
-            </div>
-          </div>
-
-          <footer class="modal-footer">
-            <button type="button" class="btn btn-outline" onclick="closeModal()">Voltar (ESC)</button>
-            <button type="submit" class="btn btn-success btn-lg">Concluir Venda & Emitir Cupom (Enter)</button>
-          </footer>
-        </form>
-      </div>
-    </div>
-  `;
+  renderOdooPaymentModalView(subtotal);
 }
 
-function togglePayFields(method, total) {
-  const isCash = method === "DINHEIRO";
-  const recGroup = document.getElementById("pay-received-group");
-  const changeGroup = document.getElementById("pay-change-group");
-  const note = document.getElementById("collab-client-note");
+function renderOdooPaymentModalView(totalOrder) {
+  const order = getActiveOrder();
+  const totalPaid = state.paymentLines.reduce((acc, p) => acc + (p.amount || 0), 0);
+  const remaining = Math.max(0, totalOrder - totalPaid);
+  const change = Math.max(0, totalPaid - totalOrder);
 
-  if (recGroup) recGroup.style.display = isCash ? "flex" : "none";
-  if (changeGroup) changeGroup.style.display = isCash ? "flex" : "none";
-  if (note) note.style.display = method === "CREDIARIO" ? "block" : "none";
-}
-
-function calcChange(total) {
-  const rec = parseFloat(document.getElementById("pay-received")?.value) || 0;
-  const change = Math.max(0, rec - total);
-  const el = document.getElementById("pay-change");
-  if (el) el.value = fmtMoeda(change);
-}
-
-async function handleCompleteSaleSubmit(e, subtotal) {
-  e.preventDefault();
-  const method = document.getElementById("pay-method").value;
-  const received = parseFloat(document.getElementById("pay-received")?.value) || subtotal;
-  const change = Math.max(0, received - subtotal);
-
-  const payload = {
-    subtotal: subtotal,
-    discount: 0,
-    addition: 0,
-    total: subtotal,
-    change: change,
-    operatorName: state.user.name,
-    customerId: state.activeCustomer ? state.activeCustomer.id : null,
-    customerName: state.activeCustomer ? state.activeCustomer.name : "Consumidor Final",
-    items: state.cart.map(c => ({
-      productId: c.productId,
-      quantity: c.quantity,
-      unitPrice: c.unitPrice,
-      discount: 0,
-      totalPrice: c.total
-    })),
-    payments: [{
-      method: method,
-      amount: subtotal,
-      cardFlag: "",
-      installments: 1
-    }]
-  };
-
-  try {
-    const res = await API.post("/api/sales/complete", payload);
-    closeModal();
-    alert(`Venda Nº ${res.number || "001"} finalizada com sucesso!\n\nForma: ${method}\nTotal: ${fmtMoeda(subtotal)}\nTroco: ${fmtMoeda(change)}`);
-    state.cart = [];
-    state.lastScannedItem = null;
-    state.activeCustomer = null;
-    renderApp();
-  } catch (err) {
-    alert("Erro ao finalizar venda: " + err.message);
-  }
-}
-
-// Consultar Produto (F3)
-function openProductSearchModal() {
   const modal = document.getElementById("modal-container");
   modal.innerHTML = `
     <div class="modal-overlay">
       <div class="modal-box wide">
         <header class="modal-header">
-          <strong class="modal-title">Consulta Rápida de Produtos (F3)</strong>
+          <strong class="modal-title">Pagamento da Venda (${order.name}) - Arquitetura Odoo POS</strong>
           <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
         </header>
+
         <div class="modal-body">
-          <input type="text" id="lookup-input" class="form-control" placeholder="Digite descrição, código de barras, SKU ou PLU..." onkeyup="filterPdvProductLookup(this.value)" autofocus />
-          <div class="table-wrap" style="margin-top:14px; max-height:400px; overflow-y:auto;">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>SKU</th>
-                  <th>EAN</th>
-                  <th>Descrição</th>
-                  <th>Preço Venda</th>
-                  <th>Estoque</th>
-                  <th>Ação</th>
-                </tr>
-              </thead>
-              <tbody id="pdv-lookup-tbody">
-                ${state.products.slice(0, 20).map(p => `
-                  <tr>
-                    <td>${p.sku}</td>
-                    <td>${p.barcode || "-"}</td>
-                    <td><strong>${p.name}</strong></td>
-                    <td style="color:#22c55e; font-weight:700;">${fmtMoeda(p.salePrice)}</td>
-                    <td>${fmtNum(p.quantity, p.isWeighable ? 3 : 0)}</td>
-                    <td><button class="btn btn-success btn-sm" onclick="selectProductToCart('${p.id}')">+ Lançar</button></td>
-                  </tr>
+          <!-- Totais & Resumo da Venda -->
+          <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin-bottom:18px;">
+            <div style="background:#030712; border:1px solid #334155; border-radius:8px; padding:12px; text-align:right;">
+              <span style="font-size:11px; color:#94a3b8; text-transform:uppercase;">Total do Pedido</span>
+              <div style="font-size:22px; font-weight:800; color:#fff; font-family:'Consolas', monospace;">${fmtMoeda(totalOrder)}</div>
+            </div>
+            <div style="background:#030712; border:1px solid ${remaining > 0 ? '#ef4444' : '#22c55e'}; border-radius:8px; padding:12px; text-align:right;">
+              <span style="font-size:11px; color:${remaining > 0 ? '#fca5a5' : '#86efac'}; text-transform:uppercase;">${remaining > 0 ? 'Falta Pagar' : 'Pago com Sucesso'}</span>
+              <div style="font-size:22px; font-weight:800; color:${remaining > 0 ? '#ef4444' : '#22c55e'}; font-family:'Consolas', monospace;">${fmtMoeda(remaining)}</div>
+            </div>
+            <div style="background:#030712; border:1px solid #38bdf8; border-radius:8px; padding:12px; text-align:right;">
+              <span style="font-size:11px; color:#7dd3fc; text-transform:uppercase;">Troco a Devolver</span>
+              <div style="font-size:22px; font-weight:800; color:#38bdf8; font-family:'Consolas', monospace;">${fmtMoeda(change)}</div>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+            <!-- Lado Esquerdo: Linhas de Pagamento Adicionadas -->
+            <div style="background:#090e1a; border:1px solid var(--border); border-radius:8px; padding:14px;">
+              <h4 style="font-size:13px; color:#38bdf8; text-transform:uppercase; margin-bottom:10px;">Pagamentos Lançados neste Pedido</h4>
+              <div style="display:flex; flex-direction:column; gap:8px; min-height:120px;">
+                ${state.paymentLines.map((p, idx) => `
+                  <div style="display:flex; justify-content:space-between; align-items:center; background:#141f36; padding:8px 12px; border-radius:6px;">
+                    <div>
+                      <strong>${p.method}</strong>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <strong style="color:#22c55e; font-size:15px; font-family:'Consolas', monospace;">${fmtMoeda(p.amount)}</strong>
+                      <button class="btn btn-danger btn-sm" onclick="removeSplitPaymentLine(${idx}, ${totalOrder})">✕</button>
+                    </div>
+                  </div>
                 `).join("")}
-              </tbody>
-            </table>
+              </div>
+
+              ${order.customer ? `
+                <div style="margin-top:14px; padding:10px; background:#111c34; border-radius:6px; font-size:12px; color:#cbd5e1;">
+                  Vínculo: <strong>${order.customer.name}</strong> | Saldo Devedor: ${fmtMoeda(order.customer.currentDebt || 0)}
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- Lado Direito: Adicionar Novo Pagamento & Cédulas Rápidas -->
+            <div style="background:#090e1a; border:1px solid var(--border); border-radius:8px; padding:14px;">
+              <h4 style="font-size:13px; color:#38bdf8; text-transform:uppercase; margin-bottom:10px;">Adicionar Pagamento</h4>
+
+              <div class="form-group" style="margin-bottom:10px;">
+                <label>Forma:</label>
+                <select id="split-method-select" class="form-control">
+                  <option value="DINHEIRO">Dinheiro</option>
+                  <option value="PIX">PIX Dinâmico</option>
+                  <option value="CARTAO_DEBITO">Cartão de Débito</option>
+                  <option value="CARTAO_CREDITO">Cartão de Crédito</option>
+                  <option value="CREDIARIO">Crediário / Desconto em Folha</option>
+                </select>
+              </div>
+
+              <div class="form-group" style="margin-bottom:10px;">
+                <label>Valor (R$):</label>
+                <input type="number" step="0.01" id="split-amount-input" class="form-control" value="${remaining > 0 ? remaining.toFixed(2) : totalOrder.toFixed(2)}" style="font-size:18px; font-weight:700;" />
+              </div>
+
+              <div class="fast-cash-buttons">
+                <button class="cash-chip" onclick="setSplitInputAmount(${remaining})">Restante (${fmtMoeda(remaining)})</button>
+                <button class="cash-chip" onclick="setSplitInputAmount(10)">+ R$ 10</button>
+                <button class="cash-chip" onclick="setSplitInputAmount(20)">+ R$ 20</button>
+                <button class="cash-chip" onclick="setSplitInputAmount(50)">+ R$ 50</button>
+                <button class="cash-chip" onclick="setSplitInputAmount(100)">+ R$ 100</button>
+                <button class="cash-chip" onclick="setSplitInputAmount(200)">+ R$ 200</button>
+              </div>
+
+              <button class="btn btn-secondary" style="width:100%; margin-top:12px;" onclick="addCurrentSplitPayment(${totalOrder})">+ Adicionar Linha de Pagamento</button>
+            </div>
+          </div>
+        </div>
+
+        <footer class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal()">Voltar ao Pedido (ESC)</button>
+          <button type="button" class="btn btn-success btn-lg" ${remaining > 0 ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''} onclick="handleOdooCompleteSale(${totalOrder}, ${change})">
+            Validar & Emitir Cupom (Enter)
+          </button>
+        </footer>
+      </div>
+    </div>
+  `;
+}
+
+function setSplitInputAmount(val) {
+  const inp = document.getElementById("split-amount-input");
+  if (inp) inp.value = Number(val || 0).toFixed(2);
+}
+
+function addCurrentSplitPayment(totalOrder) {
+  const method = document.getElementById("split-method-select")?.value || "DINHEIRO";
+  const amt = parseFloat(document.getElementById("split-amount-input")?.value) || 0;
+  if (amt <= 0) {
+    alert("Informe um valor válido maior que zero.");
+    return;
+  }
+
+  state.paymentLines.push({ method, amount: amt });
+  renderOdooPaymentModalView(totalOrder);
+}
+
+function removeSplitPaymentLine(idx, totalOrder) {
+  state.paymentLines.splice(idx, 1);
+  renderOdooPaymentModalView(totalOrder);
+}
+
+async function handleOdooCompleteSale(totalOrder, change) {
+  const order = getActiveOrder();
+
+  const payload = {
+    subtotal: totalOrder,
+    discount: 0,
+    addition: 0,
+    total: totalOrder,
+    change: change,
+    operatorName: state.user.name,
+    customerId: order.customer ? order.customer.id : null,
+    customerName: order.customer ? order.customer.name : "Consumidor Final",
+    items: order.cart.map(c => ({
+      productId: c.productId,
+      name: c.name,
+      quantity: c.quantity,
+      unitPrice: c.unitPrice,
+      discount: c.discountPct || 0,
+      totalPrice: c.total
+    })),
+    payments: state.paymentLines.map(p => ({
+      method: p.method,
+      amount: p.amount,
+      cardFlag: "",
+      installments: 1
+    }))
+  };
+
+  try {
+    const res = await API.post("/api/sales/complete", payload);
+    closeModal();
+
+    // Fecha a comanda finalizada e abre uma nova
+    const idx = state.orders.findIndex(o => o.id === order.id);
+    if (idx !== -1) {
+      state.orders.splice(idx, 1);
+    }
+    if (state.orders.length === 0) {
+      state.orders.push({ id: Date.now(), name: "Venda 1", cart: [], customer: null, selectedItemIdx: 0, discountGlobalPct: 0 });
+    }
+    state.activeOrderId = state.orders[0].id;
+    state.lastScannedItem = null;
+    renderApp();
+
+    // Exibe cupom fiscal estilo Odoo POS com impressão direta
+    showOdooThermalReceiptModal(res, payload, totalOrder, change);
+  } catch (err) {
+    alert("Erro ao validar venda no backend: " + err.message);
+  }
+}
+
+// Modal de Entrada / Saída de Caixa (Cash In / Out Odoo POS)
+function openCashInOutModal() {
+  const modal = document.getElementById("modal-container");
+  modal.innerHTML = `
+    <div class="modal-overlay">
+      <div class="modal-box">
+        <header class="modal-header">
+          <strong class="modal-title">Entrada / Saída de Caixa (Gaveta PDV)</strong>
+          <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
+        </header>
+        <div class="modal-body" style="display:flex; flex-direction:column; gap:16px;">
+          <p style="color:#94a3b8; font-size:13px;">Selecione a operação de caixa que deseja realizar neste terminal:</p>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+            <button class="btn btn-secondary btn-lg" onclick="closeModal(); openSuprimentoModal();">
+              + Suprimento (Aporte de Troco)
+            </button>
+            <button class="btn btn-danger btn-lg" onclick="closeModal(); openSangriaModal();">
+              - Sangria (Retirada de Gaveta)
+            </button>
           </div>
         </div>
       </div>
     </div>
   `;
-  setTimeout(() => document.getElementById("lookup-input")?.focus(), 50);
 }
 
-function filterPdvProductLookup(term) {
-  const t = (term || "").toLowerCase().trim();
-  const tbody = document.getElementById("pdv-lookup-tbody");
-  if (!tbody) return;
-
-  const matches = state.products.filter(p =>
-    p.name.toLowerCase().includes(t) ||
-    p.sku.toLowerCase().includes(t) ||
-    (p.barcode && p.barcode.includes(t)) ||
-    (p.pluCode && p.pluCode.includes(t))
-  );
-
-  tbody.innerHTML = matches.slice(0, 30).map(p => `
-    <tr>
-      <td>${p.sku}</td>
-      <td>${p.barcode || "-"}</td>
-      <td><strong>${p.name}</strong></td>
-      <td style="color:#22c55e; font-weight:700;">${fmtMoeda(p.salePrice)}</td>
-      <td>${fmtNum(p.quantity, p.isWeighable ? 3 : 0)}</td>
-      <td><button class="btn btn-success btn-sm" onclick="selectProductToCart('${p.id}')">+ Lançar</button></td>
-    </tr>
-  `).join("");
-}
-
-function selectProductToCart(id) {
-  const p = state.products.find(x => String(x.id) === String(id));
-  if (!p) return;
-  closeModal();
-  if (p.isWeighable && p.weighType === 0) {
-    let weight = state.activeScaleWeight || parseFloat(prompt(`Informe o peso em KG para ${p.name}:`, "1.000")) || 1.0;
-    addCartItem(p, weight, p.salePrice, weight * p.salePrice);
-  } else {
-    addCartItem(p, 1, p.salePrice, p.salePrice);
-  }
-}
-
-// Identificar Cliente (F4)
+// Modal de Identificação do Cliente / Parceiro
 async function openCustomerIdentifyModal() {
   const list = await API.get("/api/customers") || [];
   const modal = document.getElementById("modal-container");
@@ -2264,32 +2594,32 @@ async function openCustomerIdentifyModal() {
     <div class="modal-overlay">
       <div class="modal-box wide">
         <header class="modal-header">
-          <strong class="modal-title">Identificar Cliente / Convênio no PDV (F4)</strong>
+          <div style="display:flex; align-items:center; gap:12px;"><strong class="modal-title">Identificar Cliente / Parceiro no Pedido (F4)</strong><button class="btn btn-primary btn-sm" onclick="openQuickCustomerModal()">+ Novo Cliente Rápido</button></div>
           <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
         </header>
         <div class="modal-body">
-          <p style="color:#94a3b8; font-size:13px; margin-bottom:12px;">Selecione o cliente cadastrado para emissão com CPF na nota ou vendas a prazo / crediário:</p>
+          <p style="color:#94a3b8; font-size:13px; margin-bottom:12px;">Selecione o parceiro para emissão com CPF/CNPJ ou compras a prazo no crediário:</p>
           <div class="table-wrap" style="max-height:350px; overflow-y:auto;">
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>Nome do Cliente</th>
+                  <th>Nome do Parceiro</th>
                   <th>CPF / CNPJ</th>
                   <th>Telefone</th>
-                  <th>Limite Crediário</th>
-                  <th>Saldo Devedor</th>
-                  <th>Ação</th>
+                  <th class="text-right">Limite Total</th>
+                  <th class="text-right">Saldo Devedor</th>
+                  <th class="text-center">Ação</th>
                 </tr>
               </thead>
               <tbody>
                 ${list.map(c => `
                   <tr>
-                    <td><strong>${c.name}</strong></td>
+                    <td><strong>${c.name}</strong> ${c.isEmployee ? `<span class="badge badge-blue">Colaborador</span>` : ''}</td>
                     <td>${c.cpfCnpj || "-"}</td>
                     <td>${c.phone || c.cellPhone || "-"}</td>
-                    <td style="color:#22c55e;">${fmtMoeda(c.creditLimit)}</td>
-                    <td style="color:#ef4444;">${fmtMoeda(c.currentDebt)}</td>
-                    <td><button class="btn btn-success btn-sm" onclick="setCustomerActive('${c.id}', '${c.name.replace(/'/g, "")}')">Vincular</button></td>
+                    <td class="text-right" style="color:#22c55e;">${fmtMoeda(c.creditLimit)}</td>
+                    <td class="text-right" style="color:${(c.currentDebt || 0) > 0 ? '#ef4444' : '#94a3b8'}; font-weight:700;">${fmtMoeda(c.currentDebt)}</td>
+                    <td class="text-center"><button class="btn btn-success btn-sm" onclick="setCustomerForActiveOrder('${c.id}', '${c.name.replace(/'/g, "")}', ${c.creditLimit || 0}, ${c.currentDebt || 0})">Vincular</button></td>
                   </tr>
                 `).join("")}
               </tbody>
@@ -2301,11 +2631,19 @@ async function openCustomerIdentifyModal() {
   `;
 }
 
-function setCustomerActive(id, name) {
-  state.activeCustomer = { id, name };
+function setCustomerForActiveOrder(id, name, limit, debt) {
+  const order = getActiveOrder();
+  order.customer = { id, name, creditLimit: limit, currentDebt: debt };
   closeModal();
   renderApp();
 }
+
+function removeCustomerFromOrder() {
+  const order = getActiveOrder();
+  order.customer = null;
+  renderApp();
+}
+
 
 // =====================================================================
 // MÓDULOS DE SUPORTE: CLIENTES, FINANCEIRO, ETIQUETAS, DASHBOARD & AJUDA
@@ -3003,3 +3341,416 @@ function openShortcutsModal() {
 
 // Iniciar Aplicação
 window.addEventListener("DOMContentLoaded", init);
+
+
+// =====================================================================
+// MODAL DE CUPOM FISCAL TÉRMICO ESC/POS (80MM) - PADRÃO ODOO POS
+// =====================================================================
+function showOdooThermalReceiptModal(saleResult, saleData, totalOrder, change) {
+  const comp = state.company || {};
+  const saleNum = saleResult.number || "0001";
+  const nowStr = new Date().toLocaleString("pt-BR");
+
+  const modal = document.getElementById("modal-container");
+  modal.innerHTML = `
+    <div class="modal-overlay">
+      <div class="modal-box" style="max-width:440px;">
+        <header class="modal-header">
+          <strong class="modal-title">Cupom Fiscal Emitido - Venda Nº ${saleNum}</strong>
+          <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
+        </header>
+
+        <div class="modal-body thermal-receipt-container">
+          <div id="thermal-receipt-print-area" class="thermal-receipt">
+            <div class="receipt-center receipt-title">${comp.tradeName || comp.name || "SUPERMERCADO MODELO"}</div>
+            <div class="receipt-center" style="font-size:10px;">${comp.name || "SUPERMERCADO MODELO LTDA"}</div>
+            <div class="receipt-center" style="font-size:10px;">CNPJ: ${comp.cnpj || "12.345.678/0001-90"} - IE: ${comp.stateRegistration || "123.456.789"}</div>
+            <div class="receipt-center" style="font-size:10px;">${comp.address || "Rua Principal, 100 - Centro"}</div>
+            <div class="receipt-divider"></div>
+
+            <div class="receipt-center receipt-bold" style="font-size:11px;">EXTRATO Nº ${String(saleNum).padStart(6, "0")}</div>
+            <div class="receipt-center receipt-bold" style="font-size:11px;">CUPOM FISCAL ELETRÔNICO - NFC-e</div>
+            <div class="receipt-divider"></div>
+
+            <div style="font-size:10px; display:flex; justify-content:space-between;">
+              <span>DATA: ${nowStr}</span>
+              <span>TERM: 01</span>
+            </div>
+            <div style="font-size:10px;">OPERADOR: ${saleData.operatorName || state.user.name}</div>
+            <div style="font-size:10px;">CLIENTE: ${saleData.customerName || "CONSUMIDOR NÃO IDENTIFICADO"}</div>
+            ${saleData.customerCpf ? `<div style="font-size:10px;">CPF/CNPJ: ${saleData.customerCpf}</div>` : ''}
+            <div class="receipt-divider"></div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:20px;">#</th>
+                  <th>DESCRIÇÃO</th>
+                  <th style="text-align:right;">QTD x UNIT</th>
+                  <th style="text-align:right;">TOTAL</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${(saleData.items || []).map((it, idx) => `
+                  <tr>
+                    <td>${idx + 1}</td>
+                    <td>${it.name || ("PROD #" + it.productId)}</td>
+                    <td style="text-align:right;">${fmtNum(it.quantity, 2)} x ${fmtNum(it.unitPrice, 2)}</td>
+                    <td style="text-align:right;" class="receipt-bold">${fmtNum(it.totalPrice || (it.quantity * it.unitPrice), 2)}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+
+            <div class="receipt-divider"></div>
+
+            <div class="receipt-totals">
+              <div class="total-row">
+                <span>QTD. TOTAL DE ITENS</span>
+                <span>${(saleData.items || []).length}</span>
+              </div>
+              <div class="total-row">
+                <span>SUBTOTAL</span>
+                <span>${fmtMoeda(saleData.subtotal || totalOrder)}</span>
+              </div>
+              ${saleData.discount > 0 ? `
+                <div class="total-row" style="color:#b91c1c;">
+                  <span>DESCONTO TOTAL</span>
+                  <span>- ${fmtMoeda(saleData.discount)}</span>
+                </div>
+              ` : ''}
+              <div class="total-row grand-total">
+                <span>TOTAL A PAGAR</span>
+                <span>${fmtMoeda(totalOrder)}</span>
+              </div>
+
+              <div style="font-weight:700; margin-top:4px;">FORMAS DE PAGAMENTO:</div>
+              ${(saleData.payments || []).map(p => `
+                <div class="total-row">
+                  <span>${p.method}</span>
+                  <span>${fmtMoeda(p.amount)}</span>
+                </div>
+              `).join("")}
+
+              ${change > 0 ? `
+                <div class="total-row" style="font-weight:700; margin-top:2px;">
+                  <span>TROCO</span>
+                  <span>${fmtMoeda(change)}</span>
+                </div>
+              ` : ''}
+            </div>
+
+            <div class="receipt-divider"></div>
+            <div class="receipt-center" style="font-size:9px; color:#475569;">
+              Tributos Totais Incidentes (Lei 12.741/2012): Aprox. ${fmtMoeda(totalOrder * 0.18)} (18%)
+            </div>
+
+            <div class="receipt-qr">
+              <div style="font-weight:700; font-size:11px;">[ QR-CODE NFC-e ]</div>
+              <div style="font-size:8px; margin-top:4px;">Consulte pela Chave de Acesso no portal da SEFAZ</div>
+            </div>
+
+            <div class="receipt-center" style="font-size:9px;">
+              Protocolo de Autorização: 135240982348712
+            </div>
+            <div class="receipt-center receipt-bold" style="font-size:10px; margin-top:6px;">
+              OBRIGADO PELA PREFERÊNCIA!
+            </div>
+          </div>
+        </div>
+
+        <footer class="modal-footer" style="justify-content:space-between;">
+          <button type="button" class="btn btn-outline" onclick="closeModal()">Fechar</button>
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="btn btn-secondary" onclick="window.print()">Imprimir Cupom Térmico (ESC/POS)</button>
+            <button type="button" class="btn btn-success" onclick="closeModal()">+ Nova Venda (F2)</button>
+          </div>
+        </footer>
+      </div>
+    </div>
+  `;
+}
+
+// Modal de Cadastro Rápido de Cliente direto no PDV
+function openQuickCustomerModal() {
+  const modal = document.getElementById("modal-container");
+  modal.innerHTML = `
+    <div class="modal-overlay">
+      <div class="modal-box">
+        <header class="modal-header">
+          <strong class="modal-title">+ Cadastro Rápido de Cliente / Parceiro</strong>
+          <button class="btn btn-outline btn-sm" onclick="openCustomerIdentifyModal()">✕</button>
+        </header>
+        <div class="modal-body">
+          <form id="quick-customer-form" onsubmit="handleQuickCustomerSubmit(event)" style="display:flex; flex-direction:column; gap:12px;">
+            <div class="form-group">
+              <label>Nome Completo / Razão Social: *</label>
+              <input type="text" id="qc-name" class="form-control" required placeholder="Ex: Maria da Silva" autofocus />
+            </div>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label>CPF ou CNPJ:</label>
+                <input type="text" id="qc-cpf" class="form-control" placeholder="000.000.000-00" />
+              </div>
+              <div class="form-group">
+                <label>Telefone / WhatsApp:</label>
+                <input type="text" id="qc-phone" class="form-control" placeholder="(00) 00000-0000" />
+              </div>
+            </div>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label>Limite de Crédito (R$):</label>
+                <input type="number" step="0.01" id="qc-limit" class="form-control" value="500.00" />
+              </div>
+              <div class="form-group">
+                <label>Bloqueado para Crediário?</label>
+                <select id="qc-blocked" class="form-control">
+                  <option value="false">Não (Crédito Liberado)</option>
+                  <option value="true">Sim (Apenas à vista)</option>
+                </select>
+              </div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:10px;">
+              <button type="button" class="btn btn-outline" onclick="openCustomerIdentifyModal()">Voltar</button>
+              <button type="submit" class="btn btn-success">+ Salvar e Vincular à Venda</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function handleQuickCustomerSubmit(e) {
+  e.preventDefault();
+  const name = document.getElementById("qc-name")?.value.trim();
+  const cpf = document.getElementById("qc-cpf")?.value.trim();
+  const phone = document.getElementById("qc-phone")?.value.trim();
+  const limit = parseFloat(document.getElementById("qc-limit")?.value) || 0;
+  const blocked = document.getElementById("qc-blocked")?.value === "true";
+
+  if (!name) {
+    alert("Informe o nome do cliente.");
+    return;
+  }
+
+  const payload = {
+    name,
+    cpfCnpj: cpf,
+    phone,
+    creditLimit: limit,
+    isBlocked: blocked,
+    isEmployee: false,
+    address: "Cadastro Balcão PDV"
+  };
+
+  try {
+    const created = await API.post("/api/customers", payload);
+    const order = getActiveOrder();
+    order.customer = {
+      id: created.id || created.Id,
+      name: name,
+      creditLimit: limit,
+      currentDebt: 0
+    };
+    closeModal();
+    renderApp();
+    alert(`Cliente "${name}" cadastrado e vinculado com sucesso!`);
+  } catch (err) {
+    alert("Erro ao cadastrar cliente: " + err.message);
+  }
+}
+
+// =====================================================================
+// MÓDULO 6: GERENCIADOR DE VENDAS & HISTÓRICO DE TICKETS (ESTILO ODOO POS.ORDER)
+// =====================================================================
+let salesCache = [];
+
+function renderSalesManagerModule() {
+  setTimeout(() => loadSalesList(), 50);
+
+  return `
+    <div class="panel">
+      <header class="panel-header">
+        <div>
+          <h2 class="panel-title">Gerenciador de Vendas & Histórico de Cupons</h2>
+          <small style="color:var(--text-muted);">Histórico de pedidos Odoo POS, conferência de vendas, reimpressão de cupom térmico e cancelamento</small>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <input type="text" id="sales-search" class="form-control" style="width:280px;" placeholder="Buscar por número, cliente ou operador..." onkeyup="filterSalesList(this.value)" />
+          <button class="btn btn-secondary" onclick="loadSalesList()">Atualizar Lista</button>
+          <button class="btn btn-primary" onclick="navigate('/pdv')">Ir para Frente de Caixa (F2)</button>
+        </div>
+      </header>
+
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Cupom / Nº</th>
+              <th>Data / Horário</th>
+              <th>Operador</th>
+              <th>Cliente / Parceiro</th>
+              <th>Formas de Pagamento</th>
+              <th class="text-right">Subtotal</th>
+              <th class="text-right">Total</th>
+              <th class="text-center">Status</th>
+              <th class="text-center">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="sales-tbody">
+            <tr><td colspan="9" class="text-center" style="padding:40px; color:#64748b;">Carregando histórico de vendas...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+async function loadSalesList() {
+  try {
+    const list = await API.get("/api/sales") || [];
+    salesCache = list;
+    renderSalesTableRows(list);
+  } catch (err) {
+    console.error("Erro ao carregar vendas:", err);
+    const tbody = document.getElementById("sales-tbody");
+    if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="text-center" style="color:#ef4444; padding:30px;">Falha ao carregar vendas do servidor.</td></tr>`;
+  }
+}
+
+function renderSalesTableRows(list) {
+  const tbody = document.getElementById("sales-tbody");
+  if (!tbody) return;
+
+  if (list.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center" style="padding:40px; color:#64748b;">Nenhuma venda realizada até o momento.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map(s => {
+    const isCancelled = s.status === "Cancelada" || s.status === "Cancelled";
+    return `
+      <tr style="${isCancelled ? 'opacity:0.6; background:rgba(239,68,68,0.05);' : ''}">
+        <td><strong style="color:#38bdf8;">#${String(s.number).padStart(6, "0")}</strong></td>
+        <td>${fmtDataHora(s.completedAt)}</td>
+        <td>${s.operatorName || "Caixa"}</td>
+        <td>
+          <strong>${s.customerName || "Consumidor Final"}</strong>
+          ${s.customerCpf ? `<br><small style="color:#64748b;">CPF: ${s.customerCpf}</small>` : ''}
+        </td>
+        <td><small>${s.paymentSummary || "DINHEIRO"}</small></td>
+        <td class="text-right">${fmtMoeda(s.subtotal)}</td>
+        <td class="text-right"><strong style="color:${isCancelled ? '#ef4444' : '#22c55e'}; font-size:14px;">${fmtMoeda(s.total)}</strong></td>
+        <td class="text-center">
+          <span class="badge ${isCancelled ? 'badge-red' : 'badge-green'}">${s.status || "Concluída"}</span>
+        </td>
+        <td class="text-center" style="white-space:nowrap;">
+          <button class="btn btn-outline btn-sm" onclick="viewSaleReceipt(${s.number})" title="Visualizar e reimprimir cupom fiscal">Cupom (ESC/POS)</button>
+          ${!isCancelled ? `<button class="btn btn-danger btn-sm" style="margin-left:4px;" onclick="openCancelSaleModal(${s.number})">Cancelar</button>` : ''}
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function filterSalesList(query) {
+  const q = (query || "").toLowerCase().trim();
+  if (!q) {
+    renderSalesTableRows(salesCache);
+    return;
+  }
+  const filtered = salesCache.filter(s =>
+    String(s.number).includes(q) ||
+    (s.customerName && s.customerName.toLowerCase().includes(q)) ||
+    (s.customerCpf && s.customerCpf.includes(q)) ||
+    (s.operatorName && s.operatorName.toLowerCase().includes(q)) ||
+    (s.paymentSummary && s.paymentSummary.toLowerCase().includes(q))
+  );
+  renderSalesTableRows(filtered);
+}
+
+async function viewSaleReceipt(saleNumber) {
+  try {
+    const sale = await API.get(`/api/sales/${saleNumber}`);
+    if (!sale) {
+      alert("Venda não encontrada.");
+      return;
+    }
+
+    const payload = {
+      subtotal: sale.subtotal,
+      discount: sale.discount,
+      total: sale.total,
+      operatorName: sale.operatorName,
+      customerName: sale.customerName,
+      customerCpf: sale.customerCpf,
+      items: (sale.items || []).map(i => ({
+        name: i.name,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        totalPrice: i.totalPrice
+      })),
+      payments: (sale.payments || []).map(p => ({
+        method: p.method,
+        amount: p.amount
+      }))
+    };
+
+    if (payload.payments.length === 0 && sale.paymentSummary) {
+      payload.payments = [{ method: sale.paymentSummary, amount: sale.total }];
+    }
+
+    showOdooThermalReceiptModal({ number: sale.number }, payload, sale.total, 0);
+  } catch (err) {
+    alert("Erro ao carregar detalhes da venda: " + err.message);
+  }
+}
+
+function openCancelSaleModal(saleNumber) {
+  const modal = document.getElementById("modal-container");
+  modal.innerHTML = `
+    <div class="modal-overlay">
+      <div class="modal-box">
+        <header class="modal-header">
+          <strong class="modal-title" style="color:#ef4444;">Cancelar Venda Nº #${saleNumber}</strong>
+          <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
+        </header>
+        <div class="modal-body">
+          <p style="color:#94a3b8; font-size:13px; margin-bottom:12px;">O cancelamento irá estornar a movimentação de caixa e devolver os produtos ao estoque.</p>
+          <div class="form-group" style="margin-bottom:12px;">
+            <label>Motivo do Cancelamento: *</label>
+            <input type="text" id="cancel-reason" class="form-control" placeholder="Ex: Desistência do cliente / erro de digitação" required />
+          </div>
+          <div class="form-group" style="margin-bottom:12px;">
+            <label>Senha de Supervisor: *</label>
+            <input type="password" id="cancel-supervisor-pwd" class="form-control" placeholder="Digite a senha de supervisor..." required />
+          </div>
+        </div>
+        <footer class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal()">Voltar</button>
+          <button type="button" class="btn btn-danger" onclick="handleCancelSaleSubmit(${saleNumber})">Confirmar Cancelamento</button>
+        </footer>
+      </div>
+    </div>
+  `;
+}
+
+async function handleCancelSaleSubmit(saleNumber) {
+  const reason = document.getElementById("cancel-reason")?.value.trim();
+  const pwd = document.getElementById("cancel-supervisor-pwd")?.value;
+
+  if (!reason) {
+    alert("Informe o motivo do cancelamento.");
+    return;
+  }
+
+  try {
+    await API.post(`/api/sales/${saleNumber}/cancel`, { reason, supervisorPassword: pwd });
+    closeModal();
+    alert(`Venda Nº #${saleNumber} cancelada com sucesso!`);
+    loadSalesList();
+  } catch (err) {
+    alert("Erro ao cancelar venda: " + err.message);
+  }
+}
