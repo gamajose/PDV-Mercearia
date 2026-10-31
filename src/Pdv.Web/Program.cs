@@ -88,27 +88,42 @@ app.MapPost("/api/logout", async (HttpContext context) =>
     return Results.Ok();
 });
 
-app.MapGet("/api/users", async (Database db) => Results.Ok(await db.ListUsersAsync()));
-app.MapPost("/api/users", async (CreateUserRequest req, Database db) => Results.Ok(await db.CreateUserAsync(req)));
+// ---------------------------------------------------------------------
+// 2. Colaboradores / Funcionários (Unificado com Cliente / Crediário)
+// ---------------------------------------------------------------------
+app.MapGet("/api/collaborators", async (Database db, string? query) => Results.Ok(await db.ListCollaboratorsAsync(query)));
+app.MapGet("/api/collaborators/{id:guid}", async (Guid id, Database db) =>
+{
+    var c = await db.GetCollaboratorByIdAsync(id);
+    return c is not null ? Results.Ok(c) : Results.NotFound();
+});
+app.MapPost("/api/collaborators", async (CollaboratorDto req, Database db) => Results.Ok(await db.SaveCollaboratorAsync(req)));
+app.MapPut("/api/collaborators/{id:guid}", async (Guid id, CollaboratorDto req, Database db) => Results.Ok(await db.SaveCollaboratorAsync(req with { Id = id })));
+app.MapDelete("/api/collaborators/{id:guid}", async (Guid id, Database db) =>
+{
+    await db.DeleteCollaboratorAsync(id);
+    return Results.Ok(new { success = true });
+});
 
 // ---------------------------------------------------------------------
-// 2. Painel Executivo & Dados da Empresa
+// 3. Painel Executivo & Dados da Empresa
 // ---------------------------------------------------------------------
 app.MapGet("/api/dashboard", async (Database db) => Results.Ok(await db.GetDashboardAsync()));
 app.MapGet("/api/company", async (Database db) => Results.Ok(await db.GetCompanyAsync()));
 app.MapPost("/api/company", async (UpdateCompanyRequest req, Database db) => Results.Ok(await db.UpdateCompanyAsync(req)));
 
 // ---------------------------------------------------------------------
-// 3. Catálogo de Produtos & Estoque
+// 4. Catálogo de Produtos (Engenharia Reversa Completa Linear Sistemas)
 // ---------------------------------------------------------------------
-app.MapGet("/api/products", async (Database db, string? query, string? category) => Results.Ok(await db.ListProductsAsync(query, category)));
+app.MapGet("/api/products", async (Database db, string? query, string? category, string? department) =>
+    Results.Ok(await db.ListProductsAsync(query, category, department)));
 app.MapGet("/api/products/{id:guid}", async (Guid id, Database db) =>
 {
     var p = await db.GetProductByIdAsync(id);
     return p is not null ? Results.Ok(p) : Results.NotFound();
 });
-app.MapPost("/api/products", async (ProductDto req, Database db) => Results.Ok(await db.SaveProductAsync(req)));
-app.MapPut("/api/products/{id:guid}", async (Guid id, ProductDto req, Database db) => Results.Ok(await db.SaveProductAsync(req with { Id = id })));
+app.MapPost("/api/products", async (ProductLinearDto req, Database db) => Results.Ok(await db.SaveProductLinearAsync(req)));
+app.MapPut("/api/products/{id:guid}", async (Guid id, ProductLinearDto req, Database db) => Results.Ok(await db.SaveProductLinearAsync(req with { Id = id })));
 app.MapDelete("/api/products/{id:guid}", async (Guid id, Database db) =>
 {
     await db.DeleteProductAsync(id);
@@ -121,7 +136,7 @@ app.MapPost("/api/products/adjust-stock", async (AdjustStockRequest req, Databas
 });
 
 // ---------------------------------------------------------------------
-// 4. Clientes & Crediário
+// 5. Clientes & Crediário
 // ---------------------------------------------------------------------
 app.MapGet("/api/customers", async (Database db, string? query) => Results.Ok(await db.ListCustomersAsync(query)));
 app.MapGet("/api/customers/{id:guid}", async (Guid id, Database db) =>
@@ -135,24 +150,25 @@ app.MapGet("/api/crediario/customer/{id:guid}", async (Guid id, Database db) => 
 app.MapPost("/api/crediario/receive", async (ReceiveCrediarioRequest req, Database db) => Results.Ok(await db.ReceiveCrediarioPaymentAsync(req)));
 
 // ---------------------------------------------------------------------
-// 5. Fornecedores
+// 6. Fornecedores
 // ---------------------------------------------------------------------
 app.MapGet("/api/suppliers", async (Database db) => Results.Ok(await db.ListSuppliersAsync()));
 app.MapPost("/api/suppliers", async (SupplierDto req, Database db) => Results.Ok(await db.SaveSupplierAsync(req)));
 app.MapPut("/api/suppliers/{id:guid}", async (Guid id, SupplierDto req, Database db) => Results.Ok(await db.SaveSupplierAsync(req with { Id = id })));
 
 // ---------------------------------------------------------------------
-// 6. Controle de Caixa Diário (Abertura, Sangria, Suprimento, Fechamento)
+// 7. Controle de Caixa Diário (SEPARADO EM ROTAS DISTINTAS)
 // ---------------------------------------------------------------------
-app.MapGet("/api/cash/current", async (Database db) => Results.Ok(await db.GetCurrentCashSessionAsync()));
+app.MapGet("/api/cash/status", async (Database db) => Results.Ok(await db.GetCurrentCashStatusAsync()));
 app.MapPost("/api/cash/open", async (OpenCashRequest req, Database db) => Results.Ok(await db.OpenCashSessionAsync(req)));
+app.MapPost("/api/cash/close", async (CloseCashRequest req, Database db) => Results.Ok(await db.CloseCashSessionAsync(req)));
 app.MapPost("/api/cash/sangria", async (CashMovementRequest req, Database db) => Results.Ok(await db.AddCashMovementAsync("SANGRIA", req)));
 app.MapPost("/api/cash/suprimento", async (CashMovementRequest req, Database db) => Results.Ok(await db.AddCashMovementAsync("SUPRIMENTO", req)));
-app.MapPost("/api/cash/close", async (CloseCashRequest req, Database db) => Results.Ok(await db.CloseCashSessionAsync(req)));
+app.MapGet("/api/cash/movements", async (Database db, string? type, string? date) => Results.Ok(await db.ListCashMovementsAsync(type, date)));
 app.MapGet("/api/cash/history", async (Database db) => Results.Ok(await db.ListCashHistoryAsync()));
 
 // ---------------------------------------------------------------------
-// 7. Frente de Caixa (Vendas PDV, Histórico e Cancelamento)
+// 8. Frente de Caixa (Vendas PDV, Histórico e Cancelamento)
 // ---------------------------------------------------------------------
 app.MapGet("/api/sales", async (Database db) => Results.Ok(await db.ListSalesAsync()));
 app.MapGet("/api/sales/{number:long}", async (long number, Database db) =>
@@ -172,7 +188,7 @@ app.MapPost("/api/sales/{number:long}/cancel", async (long number, CancelSaleReq
 });
 
 // ---------------------------------------------------------------------
-// 8. Financeiro (Contas a Pagar e Receber)
+// 9. Financeiro (Contas a Pagar e Receber)
 // ---------------------------------------------------------------------
 app.MapGet("/api/financial", async (Database db, string? type, string? status) => Results.Ok(await db.ListFinancialEntriesAsync(type, status)));
 app.MapPost("/api/financial", async (FinancialEntryDto req, Database db) => Results.Ok(await db.SaveFinancialEntryAsync(req)));
@@ -183,9 +199,9 @@ app.MapPost("/api/financial/{id:guid}/settle", async (Guid id, SettleFinancialRe
 });
 
 // ---------------------------------------------------------------------
-// 9. Entrada de Compras / Importador de NF-e XML
+// 10. Entrada de Compras / Importador de NF-e XML
 // ---------------------------------------------------------------------
-app.MapPost("/api/nfe/parse", async (HttpRequest request, Database db) =>
+app.MapPost("/api/nfe/parse", async (HttpRequest request) =>
 {
     using var reader = new StreamReader(request.Body);
     var xmlContent = await reader.ReadToEndAsync();
@@ -199,7 +215,7 @@ app.MapPost("/api/nfe/import-parsed", async (ImportNfePayload payload, Database 
 });
 
 // ---------------------------------------------------------------------
-// 10. Configurações de Hardware e Sistema
+// 11. Configurações de Hardware e Sistema
 // ---------------------------------------------------------------------
 app.MapGet("/api/settings", async (Database db) => Results.Ok(await db.GetSettingsAsync()));
 app.MapPost("/api/settings", async (Dictionary<string, string> settings, Database db) =>
@@ -209,7 +225,7 @@ app.MapPost("/api/settings", async (Dictionary<string, string> settings, Databas
 });
 
 // ---------------------------------------------------------------------
-// 11. Relatórios Executivos (Curva ABC, Fechamento de Caixa, Inadimplência)
+// 12. Relatórios Executivos
 // ---------------------------------------------------------------------
 app.MapGet("/api/reports/abc", async (Database db) => Results.Ok(await db.GetAbcAnalysisReportAsync()));
 app.MapGet("/api/reports/cash-summary", async (Database db) => Results.Ok(await db.GetCashSummaryReportAsync()));
@@ -242,7 +258,7 @@ sealed class Database(string connectionString)
     [
         "admin.all", "sales.create", "sales.cancel", "sales.discount",
         "cash.open", "cash.sangria", "cash.suprimento", "cash.close",
-        "products.manage", "customers.manage", "financial.manage", "settings.manage"
+        "products.manage", "customers.manage", "collaborators.manage", "financial.manage", "settings.manage"
     ];
 
     private static readonly string[] OperatorPermissions =
@@ -286,6 +302,39 @@ sealed class Database(string connectionString)
                 code TEXT NOT NULL,
                 name TEXT NOT NULL,
                 active INTEGER NOT NULL DEFAULT 1,
+                FOREIGN KEY(company_id) REFERENCES company(id)
+            );
+
+            -- Tabela de Colaboradores / Funcionários Unificada com Acesso e Crediário
+            CREATE TABLE IF NOT EXISTS collaborator (
+                id TEXT PRIMARY KEY,
+                company_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                cpf TEXT NULL,
+                rg TEXT NULL,
+                phone TEXT NULL,
+                email TEXT NULL,
+                street TEXT NULL,
+                number TEXT NULL,
+                neighborhood TEXT NULL,
+                city TEXT NULL,
+                state TEXT NULL,
+                zip_code TEXT NULL,
+                role TEXT NOT NULL,
+                admission_date TEXT NULL,
+                salary REAL DEFAULT 0,
+                commission_pct REAL DEFAULT 0,
+                can_login INTEGER DEFAULT 0,
+                login TEXT NULL UNIQUE COLLATE NOCASE,
+                password_hash TEXT NULL,
+                password_salt TEXT NULL,
+                permissions_json TEXT NULL,
+                is_customer INTEGER DEFAULT 0,
+                credit_limit REAL DEFAULT 0,
+                current_debt REAL DEFAULT 0,
+                blocked INTEGER DEFAULT 0,
+                active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL,
                 FOREIGN KEY(company_id) REFERENCES company(id)
             );
 
@@ -340,35 +389,64 @@ sealed class Database(string connectionString)
                 current_debt REAL NOT NULL DEFAULT 0,
                 blocked INTEGER NOT NULL DEFAULT 0,
                 notes TEXT NULL,
+                is_employee INTEGER DEFAULT 0,
                 active INTEGER NOT NULL DEFAULT 1,
                 FOREIGN KEY(company_id) REFERENCES company(id)
             );
 
+            -- Tabela de Produtos Completa (Engenharia Reversa Linear Sistemas)
             CREATE TABLE IF NOT EXISTS product (
                 id TEXT PRIMARY KEY,
                 company_id TEXT NOT NULL,
                 sku TEXT NOT NULL,
                 barcode TEXT NULL,
+                secondary_barcodes TEXT NULL,
                 name TEXT NOT NULL,
+                short_name TEXT NULL,
+                label_name TEXT NULL,
                 brand TEXT NULL,
-                category TEXT NOT NULL,
+                department TEXT NOT NULL DEFAULT 'Alimentos',
+                section TEXT NOT NULL DEFAULT 'Mercearia',
+                category TEXT NOT NULL DEFAULT 'Geral',
+                subcategory TEXT NULL,
                 unit TEXT NOT NULL DEFAULT 'UN',
+                item_type TEXT NOT NULL DEFAULT '00',
                 cost_price REAL NOT NULL DEFAULT 0,
+                freight_pct REAL NOT NULL DEFAULT 0,
+                other_expenses_pct REAL NOT NULL DEFAULT 0,
+                net_cost REAL NOT NULL DEFAULT 0,
                 markup_pct REAL NOT NULL DEFAULT 0,
                 sale_price REAL NOT NULL DEFAULT 0,
+                wholesale_min_qty REAL DEFAULT 0,
+                wholesale_price REAL DEFAULT 0,
+                promo_price REAL DEFAULT 0,
+                promo_start TEXT NULL,
+                promo_end TEXT NULL,
                 commission_pct REAL NOT NULL DEFAULT 0,
                 quantity REAL NOT NULL DEFAULT 0,
                 min_quantity REAL NOT NULL DEFAULT 0,
+                max_quantity REAL NOT NULL DEFAULT 0,
                 location TEXT NULL,
                 ncm TEXT NULL,
+                cest TEXT NULL,
                 cfop TEXT NULL,
+                origin TEXT DEFAULT '0',
+                icms_cst TEXT DEFAULT '102',
+                icms_rate REAL DEFAULT 0,
+                pis_cst TEXT DEFAULT '49',
+                pis_rate REAL DEFAULT 0,
+                cofins_cst TEXT DEFAULT '49',
+                cofins_rate REAL DEFAULT 0,
                 supplier_id TEXT NULL,
                 is_weighable INTEGER NOT NULL DEFAULT 0,
+                weigh_type INTEGER NOT NULL DEFAULT 0,
                 plu_code TEXT NULL,
+                tare_weight REAL DEFAULT 0,
+                shelf_life_days INTEGER DEFAULT 0,
+                supervisor_auth_required INTEGER DEFAULT 0,
                 size TEXT NULL,
                 color TEXT NULL,
                 expiry_date TEXT NULL,
-                manufacture_date TEXT NULL,
                 photo_url TEXT NULL,
                 active INTEGER NOT NULL DEFAULT 1,
                 FOREIGN KEY(company_id) REFERENCES company(id)
@@ -500,6 +578,55 @@ sealed class Database(string connectionString)
             """;
         await command.ExecuteNonQueryAsync();
 
+        // Migrações dinâmicas de colunas para bancos existentes
+        var cols = new (string Table, string Column, string Definition)[]
+        {
+            ("product", "secondary_barcodes", "TEXT NULL"),
+            ("product", "short_name", "TEXT NULL"),
+            ("product", "label_name", "TEXT NULL"),
+            ("product", "brand", "TEXT NULL"),
+            ("product", "department", "TEXT NOT NULL DEFAULT 'Mercearia'"),
+            ("product", "section", "TEXT NOT NULL DEFAULT 'Geral'"),
+            ("product", "subcategory", "TEXT NULL"),
+            ("product", "item_type", "TEXT NOT NULL DEFAULT '00'"),
+            ("product", "freight_pct", "REAL NOT NULL DEFAULT 0"),
+            ("product", "other_expenses_pct", "REAL NOT NULL DEFAULT 0"),
+            ("product", "net_cost", "REAL NOT NULL DEFAULT 0"),
+            ("product", "wholesale_min_qty", "REAL DEFAULT 0"),
+            ("product", "wholesale_price", "REAL DEFAULT 0"),
+            ("product", "promo_price", "REAL DEFAULT 0"),
+            ("product", "promo_start", "TEXT NULL"),
+            ("product", "promo_end", "TEXT NULL"),
+            ("product", "max_quantity", "REAL DEFAULT 0"),
+            ("product", "cest", "TEXT NULL"),
+            ("product", "origin", "TEXT NOT NULL DEFAULT '0'"),
+            ("product", "icms_cst", "TEXT NOT NULL DEFAULT '102'"),
+            ("product", "icms_rate", "REAL NOT NULL DEFAULT 0"),
+            ("product", "pis_cst", "TEXT NOT NULL DEFAULT '07'"),
+            ("product", "pis_rate", "REAL NOT NULL DEFAULT 0"),
+            ("product", "cofins_cst", "TEXT NOT NULL DEFAULT '07'"),
+            ("product", "cofins_rate", "REAL NOT NULL DEFAULT 0"),
+            ("product", "weigh_type", "INTEGER NOT NULL DEFAULT 0"),
+            ("product", "tare_weight", "REAL NOT NULL DEFAULT 0"),
+            ("product", "shelf_life_days", "INTEGER NOT NULL DEFAULT 90"),
+            ("product", "supervisor_auth_required", "INTEGER NOT NULL DEFAULT 0"),
+            ("collaborator", "is_customer", "INTEGER NOT NULL DEFAULT 0"),
+            ("collaborator", "credit_limit", "REAL NOT NULL DEFAULT 0"),
+            ("collaborator", "current_debt", "REAL NOT NULL DEFAULT 0"),
+            ("collaborator", "can_login", "INTEGER NOT NULL DEFAULT 0")
+        };
+
+        foreach (var (tbl, col, def) in cols)
+        {
+            try
+            {
+                using var alterCmd = connection.CreateCommand();
+                alterCmd.CommandText = $"ALTER TABLE {tbl} ADD COLUMN {col} {def};";
+                await alterCmd.ExecuteNonQueryAsync();
+            }
+            catch (SqliteException) { /* Ignora se coluna já existir */ }
+        }
+
         var count = await ScalarAsync<long>("SELECT COUNT(*) FROM company");
         if (count == 0)
         {
@@ -514,7 +641,7 @@ sealed class Database(string connectionString)
         var companyId = Guid.NewGuid();
         var storeId = Guid.NewGuid();
         var adminId = Guid.NewGuid();
-        var now = DateTimeOffset.UtcNow.ToString("O");
+        var now = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture);
         var (hash, salt) = Passwords.Hash("admin123");
         var allPerms = JsonSerializer.Serialize(AdminPermissions);
 
@@ -536,18 +663,53 @@ sealed class Database(string connectionString)
             "INSERT INTO store VALUES ($id, $cid, '01', 'Loja 01 - Matriz Centro', 1)",
             ("$id", storeId), ("$cid", companyId));
 
-        // 3. Usuários / Colaboradores
+        // 3. Usuários Legados
         await ExecuteAsync(conn, null,
             "INSERT INTO app_user VALUES ($id, 'Administrador Master', 'admin', $h, $s, 'Administrador', 0, $p, 1, $now)",
             ("$id", adminId), ("$h", hash), ("$s", salt), ("$p", allPerms), ("$now", now));
 
+        // 4. Colaboradores Cadastrados (com opção de ser Cliente da loja também!)
+        var colab1Id = Guid.NewGuid();
+        var colab2Id = Guid.NewGuid();
         var (hOp, sOp) = Passwords.Hash("caixa123");
         var opPerms = JsonSerializer.Serialize(OperatorPermissions);
-        await ExecuteAsync(conn, null,
-            "INSERT INTO app_user VALUES ($id, 'Carla Operadora de Caixa', 'caixa01', $h, $s, 'Operador de Caixa', 1.5, $p, 1, $now)",
-            ("$id", Guid.NewGuid()), ("$h", hOp), ("$s", sOp), ("$p", opPerms), ("$now", now));
 
-        // 4. Fornecedores
+        // Colaboradora Carla: Operadora de Caixa e também CLIENTE da loja (com crediário/desconto em folha)
+        await ExecuteAsync(conn, null,
+            """
+            INSERT INTO collaborator VALUES (
+                $id, $cid, 'Carla Operadora de Caixa', '111.222.333-44', '12.345.678-X',
+                '(11) 98765-1111', 'carla.caixa@supermodelo.com.br', 'Rua das Palmeiras', '45',
+                'Bela Vista', 'São Paulo', 'SP', '01310-200', 'Operador de Caixa', '2024-01-15',
+                2200.00, 1.5, 1, 'caixa01', $h, $s, $p, 1, 800.00, 0.0, 0, 1, $now
+            )
+            """,
+            ("$id", colab1Id), ("$cid", companyId), ("$h", hOp), ("$s", sOp), ("$p", opPerms), ("$now", now));
+
+        // Também insere na tabela de clientes para que o PDV localize Carla no crediário
+        await ExecuteAsync(conn, null,
+            """
+            INSERT INTO customer VALUES (
+                $id, $cid, 'PF', 'Carla Operadora de Caixa (Colaboradora)', 'Carla Caixa', '111.222.333-44', '12.345.678-X',
+                '(11) 98765-1111', '(11) 98765-1111', 'carla.caixa@supermodelo.com.br', '01310-200', 'Rua das Palmeiras', '45',
+                'Bela Vista', 'São Paulo', 'SP', null, 800.0, 0.0, 0, 'Colaboradora da loja - Desconto em folha', 1, 1
+            )
+            """,
+            ("$id", colab1Id), ("$cid", companyId));
+
+        // Colaborador Marcos: Fiscal de Loja
+        await ExecuteAsync(conn, null,
+            """
+            INSERT INTO collaborator VALUES (
+                $id, $cid, 'Marcos Vinicius Fiscal', '222.333.444-55', '23.456.789-Y',
+                '(11) 97654-2222', 'marcos.fiscal@supermodelo.com.br', 'Rua Augusta', '890',
+                'Consolação', 'São Paulo', 'SP', '01311-000', 'Fiscal de Caixa', '2023-06-01',
+                2800.00, 0.0, 1, 'fiscal01', $h, $s, $p, 0, 0, 0, 0, 1, $now
+            )
+            """,
+            ("$id", colab2Id), ("$cid", companyId), ("$h", hOp), ("$s", sOp), ("$p", opPerms), ("$now", now));
+
+        // 5. Fornecedores
         var supAmbev = Guid.NewGuid();
         var supJbs = Guid.NewGuid();
         var supHering = Guid.NewGuid();
@@ -561,35 +723,73 @@ sealed class Database(string connectionString)
             "INSERT INTO supplier VALUES ($id, $cid, '82.640.551/0001-96', 'Cia Hering Vestuário', 'Hering Confecções', '334.455.667.00', 'comercial@hering.com.br', '(47) 3321-3000', 'Ana Vendas', 'Blumenau', 'SC', 1)",
             ("$id", supHering), ("$cid", companyId));
 
-        // 5. Produtos do Supermercado, Açougue com PLU, Moda com Grade
-        await InsertProductFullAsync(conn, companyId, "101", "7891000100103", "Arroz Nobre Tipo 1 5kg", "Tio Nobre", "Mercearia", "PCT", 21.50, 39.07, 29.90, 0, 150, 20, "Corredor A - Gondola 01", "10063021", "5102", supAmbev.ToString(), 0, null, null, null, "2027-12-31");
-        await InsertProductFullAsync(conn, companyId, "102", "7891000200201", "Feijão Carioca Especial 1kg", "Kicaldo", "Mercearia", "PCT", 5.20, 51.92, 7.90, 0, 95, 15, "Corredor A - Gondola 02", "07133290", "5102", supAmbev.ToString(), 0, null, null, null, "2027-08-30");
-        await InsertProductFullAsync(conn, companyId, "103", "7891000300300", "Leite Integral UHT 1L", "Itambé", "Laticínios", "UN", 3.40, 43.82, 4.89, 0, 240, 30, "Geladeira 03", "04012010", "5102", supAmbev.ToString(), 0, null, null, null, "2027-04-15");
-        await InsertProductFullAsync(conn, companyId, "104", "7891000400409", "Óleo de Soja Refinado 900ml", "Liza", "Mercearia", "UN", 4.90, 32.45, 6.49, 0, 160, 25, "Corredor B - Gondola 01", "15079011", "5102", supAmbev.ToString(), 0, null, null, null, "2027-11-20");
-        await InsertProductFullAsync(conn, companyId, "105", "7891991010899", "Cerveja Pilsen Lata 350ml", "Heineken", "Bebidas", "UN", 3.10, 44.84, 4.49, 0, 320, 50, "Câmara Fria 01", "22030000", "5405", supAmbev.ToString(), 0, null, null, null, "2027-06-30");
+        // 6. Produtos com Estrutura Completa Linear Sistemas
+        await InsertProductLinearCompleteAsync(conn, companyId,
+            sku: "101", barcode: "7891000100103", secondaryBarcodes: "7891000100196,17891000100100",
+            name: "Arroz Nobre Tipo 1 5kg", shortName: "ARROZ NOBRE 5KG", labelName: "ARROZ NOBRE T1 5KG",
+            brand: "Tio Nobre", department: "Alimentos", section: "Mercearia Salgada", category: "Cereais", subcategory: "Arroz Tipo 1",
+            unit: "PCT", itemType: "00", costPrice: 21.50, freightPct: 2.0, otherExpensesPct: 1.0, netCost: 22.15,
+            markupPct: 35.0, salePrice: 29.90, wholesaleMinQty: 6, wholesalePrice: 27.90, promoPrice: 26.90,
+            commissionPct: 0, quantity: 150, minQuantity: 20, maxQuantity: 300, location: "Corredor A - Gondola 01",
+            ncm: "10063021", cest: "1700100", cfop: "5102", origin: "0", icmsCst: "102", icmsRate: 0, pisCst: "06", pisRate: 0,
+            cofinsCst: "06", cofinsRate: 0, supplierId: supAmbev.ToString(), isWeighable: 0, weighType: 0, pluCode: null,
+            tareWeight: 0, shelfLifeDays: 365, supervisorAuthRequired: 0, size: null, color: null, expiryDate: "2027-12-31");
 
-        // Açougue e Pesáveis (Balança / PLU)
-        await InsertProductFullAsync(conn, companyId, "201", null, "Picanha Bovina Grill Especial", "Friboi", "Açougue", "KG", 48.00, 45.63, 69.90, 0, 48.5, 10, "Balcão Açougue 01", "02013000", "5102", supJbs.ToString(), 1, "123", null, null, "2026-11-15");
-        await InsertProductFullAsync(conn, companyId, "202", null, "Queijo Mussarela Fatiado", "Scala", "Frios", "KG", 31.00, 48.06, 45.90, 0, 32.0, 8, "Balcão de Frios 02", "04069022", "5102", supJbs.ToString(), 1, "124", null, null, "2026-12-10");
-        await InsertProductFullAsync(conn, companyId, "203", null, "Maçã Nacional Fuji", "Hortifruti", "Hortifruti", "KG", 6.20, 59.68, 9.90, 0, 85.0, 15, "Banca 04 Central", "08081000", "5102", supJbs.ToString(), 1, "125", null, null, "2026-11-25");
-        await InsertProductFullAsync(conn, companyId, "204", null, "Alcatra Bovina com Maminha", "Friboi", "Açougue", "KG", 33.50, 42.99, 47.90, 0, 60.0, 12, "Balcão Açougue 02", "02013000", "5102", supJbs.ToString(), 1, "126", null, null, "2026-11-18");
+        await InsertProductLinearCompleteAsync(conn, companyId,
+            sku: "102", barcode: "7891000200201", secondaryBarcodes: null,
+            name: "Feijão Carioca Especial 1kg", shortName: "FEIJAO CARIOCA 1KG", labelName: "FEIJAO CARIOCA 1KG",
+            brand: "Kicaldo", department: "Alimentos", section: "Mercearia Salgada", category: "Grãos", subcategory: "Feijão Carioca",
+            unit: "PCT", itemType: "00", costPrice: 5.20, freightPct: 2.0, otherExpensesPct: 0, netCost: 5.30,
+            markupPct: 49.0, salePrice: 7.90, wholesaleMinQty: 10, wholesalePrice: 6.99, promoPrice: 0,
+            commissionPct: 0, quantity: 95, minQuantity: 15, maxQuantity: 200, location: "Corredor A - Gondola 02",
+            ncm: "07133290", cest: "1700200", cfop: "5102", origin: "0", icmsCst: "102", icmsRate: 0, pisCst: "06", pisRate: 0,
+            cofinsCst: "06", cofinsRate: 0, supplierId: supAmbev.ToString(), isWeighable: 0, weighType: 0, pluCode: null,
+            tareWeight: 0, shelfLifeDays: 180, supervisorAuthRequired: 0, size: null, color: null, expiryDate: "2027-08-30");
+
+        // Açougue e Pesáveis (Balança / PLU / Tara)
+        await InsertProductLinearCompleteAsync(conn, companyId,
+            sku: "201", barcode: null, secondaryBarcodes: null,
+            name: "Picanha Bovina Grill Especial", shortName: "PICANHA BOV GRILL", labelName: "PICANHA GRILL KG",
+            brand: "Friboi", department: "Carnes e Aves", section: "Açougue Bovino", category: "Cortes Nobres", subcategory: "Picanha",
+            unit: "KG", itemType: "00", costPrice: 48.00, freightPct: 0, otherExpensesPct: 0, netCost: 48.00,
+            markupPct: 45.63, salePrice: 69.90, wholesaleMinQty: 5, wholesalePrice: 64.90, promoPrice: 59.90,
+            commissionPct: 0, quantity: 48.5, minQuantity: 10, maxQuantity: 100, location: "Balcão Açougue 01",
+            ncm: "02013000", cest: "1708000", cfop: "5102", origin: "0", icmsCst: "102", icmsRate: 0, pisCst: "01", pisRate: 1.65,
+            cofinsCst: "01", cofinsRate: 7.6, supplierId: supJbs.ToString(), isWeighable: 1, weighType: 1, pluCode: "123",
+            tareWeight: 15.0, shelfLifeDays: 20, supervisorAuthRequired: 1, size: null, color: null, expiryDate: "2026-11-15");
+
+        await InsertProductLinearCompleteAsync(conn, companyId,
+            sku: "202", barcode: null, secondaryBarcodes: null,
+            name: "Queijo Mussarela Fatiado", shortName: "QUEIJO MUSSARELA", labelName: "QUEIJO MUSS FAT KG",
+            brand: "Scala", department: "Frios e Laticínios", section: "Balcão de Frios", category: "Queijos", subcategory: "Mussarela",
+            unit: "KG", itemType: "00", costPrice: 31.00, freightPct: 0, otherExpensesPct: 0, netCost: 31.00,
+            markupPct: 48.06, salePrice: 45.90, wholesaleMinQty: 3, wholesalePrice: 42.90, promoPrice: 0,
+            commissionPct: 0, quantity: 32.0, minQuantity: 8, maxQuantity: 80, location: "Balcão de Frios 02",
+            ncm: "04069022", cest: "1701500", cfop: "5102", origin: "0", icmsCst: "102", icmsRate: 0, pisCst: "01", pisRate: 1.65,
+            cofinsCst: "01", cofinsRate: 7.6, supplierId: supJbs.ToString(), isWeighable: 1, weighType: 1, pluCode: "124",
+            tareWeight: 10.0, shelfLifeDays: 30, supervisorAuthRequired: 0, size: null, color: null, expiryDate: "2026-12-10");
 
         // Moda & Vestuário (Grade de Tamanho e Cor)
-        await InsertProductFullAsync(conn, companyId, "301", "7892000100011", "Camisa Polo Slim Confort", "Hering", "Vestuário", "UN", 45.00, 99.78, 89.90, 2.0, 18, 5, "Arara Moda Masc A", "61051000", "5102", supHering.ToString(), 0, null, "M", "Azul Marinho", null);
-        await InsertProductFullAsync(conn, companyId, "302", "7892000100028", "Camisa Polo Slim Confort", "Hering", "Vestuário", "UN", 45.00, 99.78, 89.90, 2.0, 14, 5, "Arara Moda Masc A", "61051000", "5102", supHering.ToString(), 0, null, "G", "Preto", null);
-        await InsertProductFullAsync(conn, companyId, "303", "7892000200018", "Calça Jeans Tradicional", "Hering", "Vestuário", "UN", 75.00, 86.53, 139.90, 3.0, 22, 6, "Prateleira Calças 02", "62034200", "5102", supHering.ToString(), 0, null, "42", "Azul Escuro", null);
-        await InsertProductFullAsync(conn, companyId, "304", "7892000200025", "Calça Jeans Tradicional", "Hering", "Vestuário", "UN", 75.00, 86.53, 139.90, 3.0, 19, 6, "Prateleira Calças 02", "62034200", "5102", supHering.ToString(), 0, null, "44", "Azul Escuro", null);
+        await InsertProductLinearCompleteAsync(conn, companyId,
+            sku: "301", barcode: "7892000100011", secondaryBarcodes: null,
+            name: "Camisa Polo Slim Confort", shortName: "POLO SLIM AZUL M", labelName: "POLO SLIM AZUL M",
+            brand: "Hering", department: "Vestuário", section: "Moda Masculina", category: "Camisas", subcategory: "Polo",
+            unit: "UN", itemType: "00", costPrice: 45.00, freightPct: 0, otherExpensesPct: 0, netCost: 45.00,
+            markupPct: 99.78, salePrice: 89.90, wholesaleMinQty: 3, wholesalePrice: 79.90, promoPrice: 0,
+            commissionPct: 2.0, quantity: 18, minQuantity: 5, maxQuantity: 50, location: "Arara Moda Masc A",
+            ncm: "61051000", cest: null, cfop: "5102", origin: "0", icmsCst: "102", icmsRate: 0, pisCst: "49", pisRate: 0,
+            cofinsCst: "49", cofinsRate: 0, supplierId: supHering.ToString(), isWeighable: 0, weighType: 0, pluCode: null,
+            tareWeight: 0, shelfLifeDays: 0, supervisorAuthRequired: 0, size: "M", color: "Azul Marinho", expiryDate: null);
 
-        // 6. Clientes com Crediário e Contas em Aberto
+        // 7. Clientes Tradicionais com Limite de Crédito
         var c1 = Guid.NewGuid();
         var c2 = Guid.NewGuid();
-        var c3 = Guid.NewGuid();
         await ExecuteAsync(conn, null,
             """
             INSERT INTO customer VALUES (
                 $id, $cid, 'PF', 'João da Silva Sauro', 'João da Silva', '123.456.789-00', '12.345.678-9',
                 '(11) 3456-7890', '(11) 98765-4321', 'joao.silva@email.com', '01310-200', 'Rua das Flores', '120',
-                'Jardins', 'São Paulo', 'SP', 'Rua das Flores, 120, Apto 41', 800.0, 220.50, 0, 'Cliente tradicional há 5 anos', 1
+                'Jardins', 'São Paulo', 'SP', 'Rua das Flores, 120, Apto 41', 800.0, 220.50, 0, 'Cliente tradicional há 5 anos', 0, 1
             )
             """,
             ("$id", c1), ("$cid", companyId));
@@ -599,32 +799,17 @@ sealed class Database(string connectionString)
             INSERT INTO customer VALUES (
                 $id, $cid, 'PF', 'Maria das Dores Oliveira', 'Dona Maria', '987.654.321-99', '23.456.789-0',
                 '(11) 3890-1234', '(11) 91234-5678', 'maria.dores@email.com', '01310-300', 'Alameda Santos', '850',
-                'Cerqueira César', 'São Paulo', 'SP', null, 1200.0, 0.0, 0, 'Ótima pagadora, limite liberado', 1
+                'Cerqueira César', 'São Paulo', 'SP', null, 1200.0, 0.0, 0, 'Ótima pagadora, limite liberado', 0, 1
             )
             """,
             ("$id", c2), ("$cid", companyId));
-
-        await ExecuteAsync(conn, null,
-            """
-            INSERT INTO customer VALUES (
-                $id, $cid, 'PJ', 'Restaurante & Buffet Sabor Ltda', 'Restaurante Sabor Divino', '34.567.890/0001-12', '456.789.012.34',
-                '(11) 3211-9988', '(11) 99887-6655', 'compras@sabordivino.com.br', '01311-000', 'Rua Augusta', '2100',
-                'Consolação', 'São Paulo', 'SP', 'Rua Augusta, 2100 - Entrada de Carga Fundos', 3500.0, 480.00, 0, 'Faturamento semanal toda terça-feira', 1
-            )
-            """,
-            ("$id", c3), ("$cid", companyId));
 
         // Crediário pendente do João da Silva
         await ExecuteAsync(conn, null,
             "INSERT INTO credit_account VALUES ($id, $cid, null, 'CARNE-2026-001', 220.50, 220.50, $due, 'ABERTO', $now)",
             ("$id", Guid.NewGuid()), ("$cid", c1), ("$due", DateTimeOffset.UtcNow.AddDays(15).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)), ("$now", now));
 
-        // Crediário pendente do Restaurante Sabor Divino
-        await ExecuteAsync(conn, null,
-            "INSERT INTO credit_account VALUES ($id, $cid, null, 'CARNE-2026-002', 480.00, 480.00, $due, 'ABERTO', $now)",
-            ("$id", Guid.NewGuid()), ("$cid", c3), ("$due", DateTimeOffset.UtcNow.AddDays(7).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)), ("$now", now));
-
-        // 7. Sessão de Caixa Aberta com Saldo Inicial
+        // 8. Sessão de Caixa Aberta com Saldo Inicial
         var sessionId = Guid.NewGuid();
         await ExecuteAsync(conn, null,
             """
@@ -640,7 +825,7 @@ sealed class Database(string connectionString)
             ("$id", Guid.NewGuid()), ("$sess", sessionId), ("$amt", (double)200.00),
             ("$op", "Administrador Master"), ("$now", now));
 
-        // 8. Contas a Pagar e Receber
+        // 9. Contas a Pagar e Receber
         await ExecuteAsync(conn, null,
             """
             INSERT INTO financial_entry VALUES (
@@ -653,57 +838,547 @@ sealed class Database(string connectionString)
         await ExecuteAsync(conn, null,
             """
             INSERT INTO financial_entry VALUES (
-                $id, $cid, 'PAGAR', 'Fatura Energia Elétrica Enel', 'FAT-202610', '84600000002 9 84500109011 8 00012345678 4 90123456789 1',
-                'Banco do Brasil', 'Enel Distribuição São Paulo', $due, 845.00, 1, 1, 'PENDENTE', null, null
-            )
-            """,
-            ("$id", Guid.NewGuid()), ("$cid", companyId), ("$due", DateTimeOffset.UtcNow.AddDays(10).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)));
-
-        await ExecuteAsync(conn, null,
-            """
-            INSERT INTO financial_entry VALUES (
                 $id, $cid, 'RECEBER', 'Fatura Convênio Empresa Metalúrgica Paulista', 'CONV-102', null,
                 'Banco Itaú', 'Metalúrgica Paulista Ltda', $due, 2350.00, 1, 1, 'PENDENTE', null, null
             )
             """,
             ("$id", Guid.NewGuid()), ("$cid", companyId), ("$due", DateTimeOffset.UtcNow.AddDays(12).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)));
 
-        // 9. Configurações Padrão de Hardware e Sistema
+        // 10. Configurações Padrão de Hardware e Sistema
         await ExecuteAsync(conn, null, "INSERT INTO system_settings VALUES ('scale_model', 'TOLEDO_PRIX3')");
         await ExecuteAsync(conn, null, "INSERT INTO system_settings VALUES ('scale_port', 'COM1')");
         await ExecuteAsync(conn, null, "INSERT INTO system_settings VALUES ('scale_baud', '9600')");
         await ExecuteAsync(conn, null, "INSERT INTO system_settings VALUES ('printer_type', 'ESC_POS_80MM')");
         await ExecuteAsync(conn, null, "INSERT INTO system_settings VALUES ('printer_model', 'EPSON_TM_T20X')");
-        await ExecuteAsync(conn, null, "INSERT INTO system_settings VALUES ('printer_cut_paper', 'true')");
-        await ExecuteAsync(conn, null, "INSERT INTO system_settings VALUES ('printer_drawer_trigger', 'true')");
-        await ExecuteAsync(conn, null, "INSERT INTO system_settings VALUES ('fluxo_acumulado', 'sim')");
-        await ExecuteAsync(conn, null, "INSERT INTO system_settings VALUES ('backup_auto', 'sim')");
     }
 
-    private static async Task InsertProductFullAsync(
-        SqliteConnection conn, Guid companyId, string sku, string? barcode, string name,
-        string brand, string category, string unit, double cost, double markup, double salePrice,
-        double commission, double qty, double minQty, string location, string ncm, string cfop,
-        string? supplierId, int weighable, string? plu, string? size, string? color, string? expiry)
+    private static async Task InsertProductLinearCompleteAsync(
+        SqliteConnection conn, Guid companyId, string sku, string? barcode, string? secondaryBarcodes,
+        string name, string shortName, string labelName, string brand, string department, string section,
+        string category, string? subcategory, string unit, string itemType, double costPrice, double freightPct,
+        double otherExpensesPct, double netCost, double markupPct, double salePrice, double wholesaleMinQty,
+        double wholesalePrice, double promoPrice, double commissionPct, double quantity, double minQuantity,
+        double maxQuantity, string location, string ncm, string? cest, string cfop, string origin,
+        string icmsCst, double icmsRate, string pisCst, double pisRate, string cofinsCst, double cofinsRate,
+        string? supplierId, int isWeighable, int weighType, string? pluCode, double tareWeight, int shelfLifeDays,
+        int supervisorAuthRequired, string? size, string? color, string? expiryDate)
     {
         await ExecuteAsync(conn, null,
             """
-            INSERT INTO product VALUES (
-                $id, $cid, $sku, $bar, $name, $brand, $cat, $unit,
-                $cost, $markup, $sale, $comm, $qty, $minq, $loc,
-                $ncm, $cfop, $sup, $w, $plu, $size, $color, $exp, null, null, 1
+            INSERT INTO product (
+                id, company_id, sku, barcode, secondary_barcodes, name, short_name, label_name,
+                brand, department, section, category, subcategory, unit, item_type,
+                cost_price, freight_pct, other_expenses_pct, net_cost, markup_pct, sale_price,
+                wholesale_min_qty, wholesale_price, promo_price, promo_start, promo_end,
+                commission_pct, quantity, min_quantity, max_quantity, location,
+                ncm, cest, cfop, origin, icms_cst, icms_rate, pis_cst, pis_rate, cofins_cst, cofins_rate,
+                supplier_id, is_weighable, weigh_type, plu_code, tare_weight, shelf_life_days,
+                supervisor_auth_required, size, color, expiry_date, active
+            ) VALUES (
+                $id, $cid, $sku, $bar, $secbar, $name, $sname, $lname,
+                $brand, $dep, $sec, $cat, $subcat, $unit, $itype,
+                $cost, $freight, $otherexp, $netcost, $markup, $sale,
+                $wqty, $wprice, $promo, null, null,
+                $comm, $qty, $minq, $maxq, $loc,
+                $ncm, $cest, $cfop, $origin, $icmscst, $icmsrate, $piscst, $pisrate, $cofinscst, $cofinsrate,
+                $sup, $w, $wtype, $plu, $tare, $shelflife,
+                $supauth, $size, $color, $exp, 1
             )
             """,
             ("$id", Guid.NewGuid()), ("$cid", companyId), ("$sku", sku), ("$bar", barcode),
-            ("$name", name), ("$brand", brand), ("$cat", category), ("$unit", unit),
-            ("$cost", cost), ("$markup", markup), ("$sale", salePrice), ("$comm", commission),
-            ("$qty", qty), ("$minq", minQty), ("$loc", location), ("$ncm", ncm), ("$cfop", cfop),
-            ("$sup", supplierId), ("$w", weighable), ("$plu", plu), ("$size", size),
-            ("$color", color), ("$exp", expiry));
+            ("$secbar", secondaryBarcodes), ("$name", name), ("$sname", shortName), ("$lname", labelName),
+            ("$brand", brand), ("$dep", department), ("$sec", section), ("$cat", category),
+            ("$subcat", subcategory), ("$unit", unit), ("$itype", itemType),
+            ("$cost", costPrice), ("$freight", freightPct), ("$otherexp", otherExpensesPct), ("$netcost", netCost),
+            ("$markup", markupPct), ("$sale", salePrice), ("$wqty", wholesaleMinQty), ("$wprice", wholesalePrice),
+            ("$promo", promoPrice), ("$comm", commissionPct), ("$qty", quantity), ("$minq", minQuantity),
+            ("$maxq", maxQuantity), ("$loc", location), ("$ncm", ncm), ("$cest", cest), ("$cfop", cfop),
+            ("$origin", origin), ("$icmscst", icmsCst), ("$icmsrate", icmsRate), ("$piscst", pisCst),
+            ("$pisrate", pisRate), ("$cofinscst", cofinsCst), ("$cofinsrate", cofinsRate),
+            ("$sup", supplierId), ("$w", isWeighable), ("$wtype", weighType), ("$plu", pluCode),
+            ("$tare", tareWeight), ("$shelflife", shelfLifeDays), ("$supauth", supervisorAuthRequired),
+            ("$size", size), ("$color", color), ("$exp", expiryDate));
     }
 
     // -----------------------------------------------------------------
-    // Queries e Métodos do Dashboard e Relatórios
+    // Colaboradores (CRUD Completo e Unificação com Cliente)
+    // -----------------------------------------------------------------
+    public async Task<IReadOnlyList<object>> ListCollaboratorsAsync(string? query = null)
+    {
+        var list = new List<object>();
+        await using var c = Open(); await c.OpenAsync();
+        var cmd = c.CreateCommand();
+        var sql = "SELECT id,name,cpf,phone,email,role,admission_date,salary,commission_pct,can_login,login,is_customer,credit_limit,current_debt FROM collaborator WHERE active=1";
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            sql += " AND (name LIKE $q OR cpf LIKE $q OR role LIKE $q OR login LIKE $q)";
+            cmd.Parameters.AddWithValue("$q", $"%{query.Trim()}%");
+        }
+        sql += " ORDER BY name ASC";
+        cmd.CommandText = sql;
+
+        await using var r = await cmd.ExecuteReaderAsync();
+        while (await r.ReadAsync())
+        {
+            list.Add(new
+            {
+                id = r.GetString(0),
+                name = r.GetString(1),
+                cpf = r.IsDBNull(2) ? null : r.GetString(2),
+                phone = r.IsDBNull(3) ? null : r.GetString(3),
+                email = r.IsDBNull(4) ? null : r.GetString(4),
+                role = r.GetString(5),
+                admissionDate = r.IsDBNull(6) ? null : r.GetString(6),
+                salary = r.GetDouble(7),
+                commissionPct = r.GetDouble(8),
+                canLogin = r.GetInt32(9) == 1,
+                login = r.IsDBNull(10) ? null : r.GetString(10),
+                isCustomer = r.GetInt32(11) == 1,
+                creditLimit = r.GetDouble(12),
+                currentDebt = r.GetDouble(13)
+            });
+        }
+        return list;
+    }
+
+    public async Task<object?> GetCollaboratorByIdAsync(Guid id)
+    {
+        await using var c = Open(); await c.OpenAsync();
+        var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT id,name,cpf,rg,phone,email,street,number,neighborhood,city,state,zip_code,role,admission_date,salary,commission_pct,can_login,login,is_customer,credit_limit,current_debt FROM collaborator WHERE id=$id";
+        cmd.Parameters.AddWithValue("$id", id.ToString());
+        await using var r = await cmd.ExecuteReaderAsync();
+        if (!await r.ReadAsync()) return null;
+        return new
+        {
+            id = r.GetString(0), name = r.GetString(1), cpf = r.IsDBNull(2) ? null : r.GetString(2),
+            rg = r.IsDBNull(3) ? null : r.GetString(3), phone = r.IsDBNull(4) ? null : r.GetString(4),
+            email = r.IsDBNull(5) ? null : r.GetString(5), street = r.IsDBNull(6) ? null : r.GetString(6),
+            number = r.IsDBNull(7) ? null : r.GetString(7), neighborhood = r.IsDBNull(8) ? null : r.GetString(8),
+            city = r.IsDBNull(9) ? null : r.GetString(9), state = r.IsDBNull(10) ? null : r.GetString(10),
+            zipCode = r.IsDBNull(11) ? null : r.GetString(11), role = r.GetString(12),
+            admissionDate = r.IsDBNull(13) ? null : r.GetString(13), salary = r.GetDouble(14),
+            commissionPct = r.GetDouble(15), canLogin = r.GetInt32(16) == 1,
+            login = r.IsDBNull(17) ? null : r.GetString(17), isCustomer = r.GetInt32(18) == 1,
+            creditLimit = r.GetDouble(19), currentDebt = r.GetDouble(20)
+        };
+    }
+
+    public async Task<object> SaveCollaboratorAsync(CollaboratorDto req)
+    {
+        await using var c = Open(); await c.OpenAsync();
+        var id = req.Id ?? Guid.NewGuid();
+        var cid = Guid.Parse((await QuerySingleAsync(c, "SELECT id FROM company LIMIT 1"))[0]!);
+        var now = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+
+        string? hash = null;
+        string? salt = null;
+        if (!string.IsNullOrWhiteSpace(req.Password))
+        {
+            var res = Passwords.Hash(req.Password);
+            hash = res.Hash;
+            salt = res.Salt;
+        }
+
+        await ExecuteAsync(c, null,
+            """
+            INSERT INTO collaborator (
+                id, company_id, name, cpf, rg, phone, email, street, number, neighborhood,
+                city, state, zip_code, role, admission_date, salary, commission_pct,
+                can_login, login, password_hash, password_salt, permissions_json,
+                is_customer, credit_limit, current_debt, blocked, active, created_at
+            ) VALUES (
+                $id, $cid, $name, $cpf, $rg, $phone, $email, $st, $num, $neigh,
+                $city, $uf, $zip, $role, $adm, $sal, $comm,
+                $canlogin, $login, $h, $s, $perms,
+                $iscust, $limit, $debt, 0, 1, $now
+            )
+            ON CONFLICT(id) DO UPDATE SET
+                name=$name, cpf=$cpf, rg=$rg, phone=$phone, email=$email,
+                street=$st, number=$num, neighborhood=$neigh, city=$city, state=$uf, zip_code=$zip,
+                role=$role, admission_date=$adm, salary=$sal, commission_pct=$comm,
+                can_login=$canlogin, login=$login, is_customer=$iscust, credit_limit=$limit
+            """,
+            ("$id", id), ("$cid", cid), ("$name", req.Name), ("$cpf", req.Cpf), ("$rg", req.Rg),
+            ("$phone", req.Phone), ("$email", req.Email), ("$st", req.Street), ("$num", req.Number),
+            ("$neigh", req.Neighborhood), ("$city", req.City), ("$uf", req.State), ("$zip", req.ZipCode),
+            ("$role", req.Role), ("$adm", req.AdmissionDate), ("$sal", (double)req.Salary),
+            ("$comm", (double)req.CommissionPct), ("$canlogin", req.CanLogin ? 1 : 0),
+            ("$login", req.Login), ("$h", hash), ("$s", salt), ("$perms", "[\"sales.create\"]"),
+            ("$iscust", req.IsCustomer ? 1 : 0), ("$limit", (double)req.CreditLimit),
+            ("$debt", (double)req.CurrentDebt), ("$now", now));
+
+        // Se o colaborador foi marcado como cliente, sincroniza diretamente com a tabela de clientes
+        if (req.IsCustomer)
+        {
+            await ExecuteAsync(c, null,
+                """
+                INSERT INTO customer (
+                    id, company_id, type, name, trade_name, cpf_cnpj, rg_ie, phone, cell_phone,
+                    email, zip_code, street, number, neighborhood, city, state, delivery_address,
+                    credit_limit, current_debt, blocked, notes, is_employee, active
+                ) VALUES (
+                    $id, $cid, 'PF', $name, 'Colaborador', $cpf, $rg, $phone, $phone,
+                    $email, $zip, $st, $num, $neigh, $city, $uf, null,
+                    $limit, $debt, 0, 'Colaborador da loja (Compras a Prazo / Folha)', 1, 1
+                )
+                ON CONFLICT(id) DO UPDATE SET
+                    name=$name, cpf_cnpj=$cpf, rg_ie=$rg, phone=$phone, cell_phone=$phone,
+                    email=$email, zip_code=$zip, street=$st, number=$num, neighborhood=$neigh,
+                    city=$city, state=$uf, credit_limit=$limit, is_employee=1
+                """,
+                ("$id", id), ("$cid", cid), ("$name", req.Name), ("$cpf", req.Cpf), ("$rg", req.Rg),
+                ("$phone", req.Phone), ("$email", req.Email), ("$zip", req.ZipCode), ("$st", req.Street),
+                ("$num", req.Number), ("$neigh", req.Neighborhood), ("$city", req.City), ("$uf", req.State),
+                ("$limit", (double)req.CreditLimit), ("$debt", (double)req.CurrentDebt));
+        }
+
+        return new { id, success = true };
+    }
+
+    public async Task DeleteCollaboratorAsync(Guid id)
+    {
+        await using var c = Open(); await c.OpenAsync();
+        await ExecuteAsync(c, null, "UPDATE collaborator SET active=0 WHERE id=$id", ("$id", id));
+    }
+
+    // -----------------------------------------------------------------
+    // Produtos (Linear Sistemas Engenharia Reversa)
+    // -----------------------------------------------------------------
+    public async Task<IReadOnlyList<object>> ListProductsAsync(string? query = null, string? category = null, string? department = null)
+    {
+        var list = new List<object>();
+        await using var c = Open(); await c.OpenAsync();
+        var cmd = c.CreateCommand();
+        var sql = "SELECT id,sku,barcode,name,short_name,brand,department,section,category,unit,cost_price,markup_pct,sale_price,wholesale_min_qty,wholesale_price,promo_price,quantity,min_quantity,location,ncm,cfop,is_weighable,plu_code,tare_weight FROM product WHERE active=1";
+
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            sql += " AND (name LIKE $q OR sku LIKE $q OR barcode LIKE $q OR plu_code LIKE $q OR secondary_barcodes LIKE $q)";
+            cmd.Parameters.AddWithValue("$q", $"%{query.Trim()}%");
+        }
+        if (!string.IsNullOrWhiteSpace(category) && category != "Todos")
+        {
+            sql += " AND category = $cat";
+            cmd.Parameters.AddWithValue("$cat", category.Trim());
+        }
+        if (!string.IsNullOrWhiteSpace(department) && department != "Todos")
+        {
+            sql += " AND department = $dep";
+            cmd.Parameters.AddWithValue("$dep", department.Trim());
+        }
+        sql += " ORDER BY name ASC";
+        cmd.CommandText = sql;
+
+        await using var r = await cmd.ExecuteReaderAsync();
+        while (await r.ReadAsync())
+        {
+            list.Add(new
+            {
+                id = r.GetString(0),
+                sku = r.GetString(1),
+                barcode = r.IsDBNull(2) ? null : r.GetString(2),
+                name = r.GetString(3),
+                shortName = r.IsDBNull(4) ? null : r.GetString(4),
+                brand = r.IsDBNull(5) ? null : r.GetString(5),
+                department = r.GetString(6),
+                section = r.GetString(7),
+                category = r.GetString(8),
+                unit = r.GetString(9),
+                costPrice = r.GetDouble(10),
+                markupPct = r.GetDouble(11),
+                salePrice = r.GetDouble(12),
+                wholesaleMinQty = r.GetDouble(13),
+                wholesalePrice = r.GetDouble(14),
+                promoPrice = r.GetDouble(15),
+                quantity = r.GetDouble(16),
+                minQuantity = r.GetDouble(17),
+                location = r.IsDBNull(18) ? null : r.GetString(18),
+                ncm = r.IsDBNull(19) ? null : r.GetString(19),
+                cfop = r.IsDBNull(20) ? null : r.GetString(20),
+                isWeighable = r.GetInt32(21) == 1,
+                pluCode = r.IsDBNull(22) ? null : r.GetString(22),
+                tareWeight = r.GetDouble(23)
+            });
+        }
+        return list;
+    }
+
+    public async Task<object?> GetProductByIdAsync(Guid id)
+    {
+        await using var c = Open(); await c.OpenAsync();
+        var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT id,sku,barcode,secondary_barcodes,name,short_name,label_name,brand,department,section,category,subcategory,unit,item_type,cost_price,freight_pct,other_expenses_pct,net_cost,markup_pct,sale_price,wholesale_min_qty,wholesale_price,promo_price,commission_pct,quantity,min_quantity,max_quantity,location,ncm,cest,cfop,origin,icms_cst,icms_rate,pis_cst,pis_rate,cofins_cst,cofins_rate,supplier_id,is_weighable,weigh_type,plu_code,tare_weight,shelf_life_days,supervisor_auth_required,size,color,expiry_date FROM product WHERE id=$id";
+        cmd.Parameters.AddWithValue("$id", id.ToString());
+        await using var r = await cmd.ExecuteReaderAsync();
+        if (!await r.ReadAsync()) return null;
+        return new
+        {
+            id = r.GetString(0), sku = r.GetString(1), barcode = r.IsDBNull(2) ? null : r.GetString(2),
+            secondaryBarcodes = r.IsDBNull(3) ? null : r.GetString(3), name = r.GetString(4),
+            shortName = r.IsDBNull(5) ? null : r.GetString(5), labelName = r.IsDBNull(6) ? null : r.GetString(6),
+            brand = r.IsDBNull(7) ? null : r.GetString(7), department = r.GetString(8), section = r.GetString(9),
+            category = r.GetString(10), subcategory = r.IsDBNull(11) ? null : r.GetString(11), unit = r.GetString(12),
+            itemType = r.GetString(13), costPrice = r.GetDouble(14), freightPct = r.GetDouble(15),
+            otherExpensesPct = r.GetDouble(16), netCost = r.GetDouble(17), markupPct = r.GetDouble(18),
+            salePrice = r.GetDouble(19), wholesaleMinQty = r.GetDouble(20), wholesalePrice = r.GetDouble(21),
+            promoPrice = r.GetDouble(22), commissionPct = r.GetDouble(23), quantity = r.GetDouble(24),
+            minQuantity = r.GetDouble(25), maxQuantity = r.GetDouble(26), location = r.IsDBNull(27) ? null : r.GetString(27),
+            ncm = r.IsDBNull(28) ? null : r.GetString(28), cest = r.IsDBNull(29) ? null : r.GetString(29),
+            cfop = r.IsDBNull(30) ? null : r.GetString(30), origin = r.GetString(31), icmsCst = r.GetString(32),
+            icmsRate = r.GetDouble(33), pisCst = r.GetString(34), pisRate = r.GetDouble(35), cofinsCst = r.GetString(36),
+            cofinsRate = r.GetDouble(37), supplierId = r.IsDBNull(38) ? null : r.GetString(38),
+            isWeighable = r.GetInt32(39) == 1, weighType = r.GetInt32(40), pluCode = r.IsDBNull(41) ? null : r.GetString(41),
+            tareWeight = r.GetDouble(42), shelfLifeDays = r.GetInt32(43), supervisorAuthRequired = r.GetInt32(44) == 1,
+            size = r.IsDBNull(45) ? null : r.GetString(45), color = r.IsDBNull(46) ? null : r.GetString(46),
+            expiryDate = r.IsDBNull(47) ? null : r.GetString(47)
+        };
+    }
+
+    public async Task<object> SaveProductLinearAsync(ProductLinearDto req)
+    {
+        await using var c = Open(); await c.OpenAsync();
+        var id = req.Id ?? Guid.NewGuid();
+        var cid = Guid.Parse((await QuerySingleAsync(c, "SELECT id FROM company LIMIT 1"))[0]!);
+
+        var netCost = (double)req.CostPrice * (1 + (double)(req.FreightPct + req.OtherExpensesPct) / 100);
+
+        await ExecuteAsync(c, null,
+            """
+            INSERT INTO product (
+                id, company_id, sku, barcode, secondary_barcodes, name, short_name, label_name,
+                brand, department, section, category, subcategory, unit, item_type,
+                cost_price, freight_pct, other_expenses_pct, net_cost, markup_pct, sale_price,
+                wholesale_min_qty, wholesale_price, promo_price, promo_start, promo_end,
+                commission_pct, quantity, min_quantity, max_quantity, location,
+                ncm, cest, cfop, origin, icms_cst, icms_rate, pis_cst, pis_rate, cofins_cst, cofins_rate,
+                supplier_id, is_weighable, weigh_type, plu_code, tare_weight, shelf_life_days,
+                supervisor_auth_required, size, color, expiry_date, active
+            ) VALUES (
+                $id, $cid, $sku, $bar, $secbar, $name, $sname, $lname,
+                $brand, $dep, $sec, $cat, $subcat, $unit, $itype,
+                $cost, $freight, $otherexp, $netcost, $markup, $sale,
+                $wqty, $wprice, $promo, null, null,
+                $comm, $qty, $minq, $maxq, $loc,
+                $ncm, $cest, $cfop, $origin, $icmscst, $icmsrate, $piscst, $pisrate, $cofinscst, $cofinsrate,
+                $sup, $w, $wtype, $plu, $tare, $shelflife,
+                $supauth, $size, $color, $exp, 1
+            )
+            ON CONFLICT(id) DO UPDATE SET
+                sku=$sku, barcode=$bar, secondary_barcodes=$secbar, name=$name, short_name=$sname, label_name=$lname,
+                brand=$brand, department=$dep, section=$sec, category=$cat, subcategory=$subcat, unit=$unit, item_type=$itype,
+                cost_price=$cost, freight_pct=$freight, other_expenses_pct=$otherexp, net_cost=$netcost, markup_pct=$markup,
+                sale_price=$sale, wholesale_min_qty=$wqty, wholesale_price=$wprice, promo_price=$promo,
+                commission_pct=$comm, quantity=$qty, min_quantity=$minq, max_quantity=$maxq, location=$loc,
+                ncm=$ncm, cest=$cest, cfop=$cfop, origin=$origin, icms_cst=$icmscst, icms_rate=$icmsrate,
+                pis_cst=$piscst, pis_rate=$pisrate, cofins_cst=$cofinscst, cofins_rate=$cofinsrate,
+                supplier_id=$sup, is_weighable=$w, weigh_type=$wtype, plu_code=$plu, tare_weight=$tare,
+                shelf_life_days=$shelflife, supervisor_auth_required=$supauth, size=$size, color=$color, expiry_date=$exp
+            """,
+            ("$id", id), ("$cid", cid), ("$sku", req.Sku), ("$bar", req.Barcode),
+            ("$secbar", req.SecondaryBarcodes), ("$name", req.Name),
+            ("$sname", req.ShortName ?? (req.Name.Length > 25 ? req.Name[..25] : req.Name)),
+            ("$lname", req.LabelName ?? req.Name), ("$brand", req.Brand),
+            ("$dep", req.Department ?? "Alimentos"), ("$sec", req.Section ?? "Mercearia"),
+            ("$cat", req.Category ?? "Geral"), ("$subcat", req.Subcategory), ("$unit", req.Unit ?? "UN"),
+            ("$itype", req.ItemType ?? "00"), ("$cost", (double)req.CostPrice),
+            ("$freight", (double)req.FreightPct), ("$otherexp", (double)req.OtherExpensesPct),
+            ("$netcost", netCost), ("$markup", (double)req.MarkupPct), ("$sale", (double)req.SalePrice),
+            ("$wqty", (double)req.WholesaleMinQty), ("$wprice", (double)req.WholesalePrice),
+            ("$promo", (double)req.PromoPrice), ("$comm", (double)req.CommissionPct),
+            ("$qty", (double)req.Quantity), ("$minq", (double)req.MinQuantity),
+            ("$maxq", (double)req.MaxQuantity), ("$loc", req.Location), ("$ncm", req.Ncm),
+            ("$cest", req.Cest), ("$cfop", req.Cfop ?? "5102"), ("$origin", req.Origin ?? "0"),
+            ("$icmscst", req.IcmsCst ?? "102"), ("$icmsrate", (double)req.IcmsRate),
+            ("$piscst", req.PisCst ?? "49"), ("$pisrate", (double)req.PisRate),
+            ("$cofinscst", req.CofinsCst ?? "49"), ("$cofinsrate", (double)req.CofinsRate),
+            ("$sup", req.SupplierId), ("$w", req.IsWeighable ? 1 : 0), ("$wtype", req.WeighType),
+            ("$plu", req.PluCode), ("$tare", (double)req.TareWeight),
+            ("$shelflife", req.ShelfLifeDays), ("$supauth", req.SupervisorAuthRequired ? 1 : 0),
+            ("$size", req.Size), ("$color", req.Color), ("$exp", req.ExpiryDate));
+
+        return new { id, success = true };
+    }
+
+    public async Task DeleteProductAsync(Guid id)
+    {
+        await using var c = Open(); await c.OpenAsync();
+        await ExecuteAsync(c, null, "UPDATE product SET active=0 WHERE id=$id", ("$id", id));
+    }
+
+    public async Task AdjustProductStockAsync(Guid id, decimal newQuantity, string? reason)
+    {
+        await using var c = Open(); await c.OpenAsync();
+        await ExecuteAsync(c, null, "UPDATE product SET quantity=$q WHERE id=$id", ("$q", (double)newQuantity), ("$id", id));
+    }
+
+    // -----------------------------------------------------------------
+    // Controle de Caixa Diário (SEPARADO EM STATUS E MOVIMENTAÇÃO)
+    // -----------------------------------------------------------------
+    public async Task<object?> GetCurrentCashStatusAsync()
+    {
+        await using var c = Open(); await c.OpenAsync();
+        var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT id,operator_name,opened_at,opening_balance,total_inflows,total_outflows,closing_balance_expected,status FROM cash_session WHERE status='ABERTO' ORDER BY opened_at DESC LIMIT 1";
+        await using var r = await cmd.ExecuteReaderAsync();
+        if (!await r.ReadAsync()) return null;
+
+        return new
+        {
+            id = r.GetString(0),
+            operatorName = r.GetString(1),
+            openedAt = r.GetString(2),
+            openingBalance = r.GetDouble(3),
+            totalInflows = r.GetDouble(4),
+            totalOutflows = r.GetDouble(5),
+            closingBalanceExpected = r.GetDouble(6),
+            status = r.GetString(7)
+        };
+    }
+
+    public async Task<IReadOnlyList<object>> ListCashMovementsAsync(string? type = null, string? date = null)
+    {
+        var list = new List<object>();
+        await using var c = Open(); await c.OpenAsync();
+        var cmd = c.CreateCommand();
+        var sql = "SELECT id,session_id,type,description,amount,operator_name,created_at FROM cash_movement WHERE 1=1";
+        if (!string.IsNullOrWhiteSpace(type))
+        {
+            sql += " AND type = $type";
+            cmd.Parameters.AddWithValue("$type", type.ToUpperInvariant());
+        }
+        if (!string.IsNullOrWhiteSpace(date))
+        {
+            sql += " AND created_at LIKE $d";
+            cmd.Parameters.AddWithValue("$d", $"{date}%");
+        }
+        sql += " ORDER BY created_at DESC LIMIT 100";
+        cmd.CommandText = sql;
+
+        await using var r = await cmd.ExecuteReaderAsync();
+        while (await r.ReadAsync())
+        {
+            list.Add(new
+            {
+                id = r.GetString(0), sessionId = r.GetString(1), type = r.GetString(2),
+                description = r.GetString(3), amount = r.GetDouble(4), operatorName = r.GetString(5),
+                createdAt = r.GetString(6)
+            });
+        }
+        return list;
+    }
+
+    public async Task<object> OpenCashSessionAsync(OpenCashRequest req)
+    {
+        await using var c = Open(); await c.OpenAsync();
+        var activeId = await ScalarAsync<string?>("SELECT id FROM cash_session WHERE status='ABERTO' LIMIT 1");
+        if (activeId != null) return new { error = "Já existe um caixa aberto no momento" };
+
+        var storeId = (await QuerySingleAsync(c, "SELECT id FROM store LIMIT 1"))[0]!;
+        var sessionId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+
+        await ExecuteAsync(c, null,
+            """
+            INSERT INTO cash_session VALUES (
+                $id, $sid, $uid, $op, $now, null,
+                $open, 0, 0, $open, null, null, 'ABERTO'
+            )
+            """,
+            ("$id", sessionId), ("$sid", storeId), ("$uid", req.OperatorId ?? Guid.NewGuid()),
+            ("$op", req.OperatorName ?? "Operador"), ("$now", now), ("$open", (double)req.OpeningBalance));
+
+        await ExecuteAsync(c, null,
+            "INSERT INTO cash_movement VALUES ($id, $sess, 'ABERTURA', 'Fundo de troco inicial de abertura do caixa', $amt, $op, $now)",
+            ("$id", Guid.NewGuid()), ("$sess", sessionId), ("$amt", (double)req.OpeningBalance),
+            ("$op", req.OperatorName ?? "Operador"), ("$now", now));
+
+        return new { sessionId, success = true };
+    }
+
+    public async Task<object> AddCashMovementAsync(string type, CashMovementRequest req)
+    {
+        await using var c = Open(); await c.OpenAsync();
+        var sessionId = await ScalarAsync<string?>("SELECT id FROM cash_session WHERE status='ABERTO' LIMIT 1");
+        if (sessionId == null) return new { error = "Nenhum caixa aberto no momento" };
+
+        var now = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+        var amt = (double)req.Amount;
+
+        await ExecuteAsync(c, null,
+            "INSERT INTO cash_movement VALUES ($id, $sess, $type, $desc, $amt, $op, $now)",
+            ("$id", Guid.NewGuid()), ("$sess", sessionId), ("$type", type),
+            ("$desc", req.Description ?? type), ("$amt", amt),
+            ("$op", req.OperatorName ?? "Operador"), ("$now", now));
+
+        if (type == "SANGRIA")
+        {
+            await ExecuteAsync(c, null,
+                "UPDATE cash_session SET total_outflows = total_outflows + $amt, closing_balance_expected = closing_balance_expected - $amt WHERE id=$id",
+                ("$amt", amt), ("$id", sessionId));
+        }
+        else
+        {
+            await ExecuteAsync(c, null,
+                "UPDATE cash_session SET total_inflows = total_inflows + $amt, closing_balance_expected = closing_balance_expected + $amt WHERE id=$id",
+                ("$amt", amt), ("$id", sessionId));
+        }
+
+        return new { success = true, type, amount = req.Amount, timestamp = now };
+    }
+
+    public async Task<object> CloseCashSessionAsync(CloseCashRequest req)
+    {
+        await using var c = Open(); await c.OpenAsync();
+        var sessionId = await ScalarAsync<string?>("SELECT id FROM cash_session WHERE status='ABERTO' LIMIT 1");
+        if (sessionId == null) return new { error = "Nenhum caixa aberto para fechamento" };
+
+        var expected = await ScalarAsync<double>($"SELECT closing_balance_expected FROM cash_session WHERE id='{sessionId}'");
+        var physical = (double)req.PhysicalBalance;
+        var diff = physical - expected;
+        var now = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+
+        await ExecuteAsync(c, null,
+            """
+            UPDATE cash_session SET
+                closed_at=$now, closing_balance_physical=$phys, difference=$diff, status='FECHADO'
+            WHERE id=$id
+            """,
+            ("$now", now), ("$phys", physical), ("$diff", diff), ("$id", sessionId));
+
+        return new
+        {
+            sessionId,
+            expectedBalance = expected,
+            physicalBalance = physical,
+            difference = diff,
+            closedAt = now,
+            status = "FECHADO"
+        };
+    }
+
+    public async Task<IReadOnlyList<object>> ListCashHistoryAsync()
+    {
+        var list = new List<object>();
+        await using var c = Open(); await c.OpenAsync();
+        var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT id,operator_name,opened_at,closed_at,opening_balance,closing_balance_expected,closing_balance_physical,difference,status FROM cash_session ORDER BY opened_at DESC LIMIT 30";
+        await using var r = await cmd.ExecuteReaderAsync();
+        while (await r.ReadAsync())
+        {
+            list.Add(new
+            {
+                id = r.GetString(0), operatorName = r.GetString(1), openedAt = r.GetString(2),
+                closedAt = r.IsDBNull(3) ? null : r.GetString(3), openingBalance = r.GetDouble(4),
+                expected = r.GetDouble(5), physical = r.IsDBNull(6) ? null : (double?)r.GetDouble(6),
+                difference = r.IsDBNull(7) ? null : (double?)r.GetDouble(7), status = r.GetString(8)
+            });
+        }
+        return list;
+    }
+
+    // -----------------------------------------------------------------
+    // Dashboard, Empresa e Configurações
     // -----------------------------------------------------------------
     public async Task<object> GetDashboardAsync()
     {
@@ -713,6 +1388,7 @@ sealed class Database(string connectionString)
         var sales = await CountAsync(connection, "sale");
         var customers = await CountAsync(connection, "customer");
         var suppliers = await CountAsync(connection, "supplier");
+        var collaborators = await CountAsync(connection, "collaborator");
         var salesTotal = await ScalarAsync<double>("SELECT COALESCE(SUM(total),0) FROM sale WHERE status='CONCLUIDA'");
         var pendingPayables = await ScalarAsync<double>("SELECT COALESCE(SUM(amount),0) FROM financial_entry WHERE type='PAGAR' AND status='PENDENTE'");
         var pendingReceivables = await ScalarAsync<double>("SELECT COALESCE(SUM(amount),0) FROM financial_entry WHERE type='RECEBER' AND status='PENDENTE'");
@@ -729,6 +1405,7 @@ sealed class Database(string connectionString)
             sales,
             customers,
             suppliers,
+            collaborators,
             salesTotal,
             pendingPayables,
             pendingReceivables,
@@ -767,134 +1444,14 @@ sealed class Database(string connectionString)
     }
 
     // -----------------------------------------------------------------
-    // Produtos
-    // -----------------------------------------------------------------
-    public async Task<IReadOnlyList<object>> ListProductsAsync(string? query = null, string? category = null)
-    {
-        var list = new List<object>();
-        await using var c = Open(); await c.OpenAsync();
-        var cmd = c.CreateCommand();
-        var sql = "SELECT id,sku,barcode,name,brand,category,unit,cost_price,markup_pct,sale_price,commission_pct,quantity,min_quantity,location,ncm,cfop,is_weighable,plu_code,size,color,expiry_date FROM product WHERE active=1";
-        if (!string.IsNullOrWhiteSpace(query))
-        {
-            sql += " AND (name LIKE $q OR sku LIKE $q OR barcode LIKE $q OR plu_code LIKE $q)";
-            cmd.Parameters.AddWithValue("$q", $"%{query.Trim()}%");
-        }
-        if (!string.IsNullOrWhiteSpace(category) && category != "Todos")
-        {
-            sql += " AND category = $cat";
-            cmd.Parameters.AddWithValue("$cat", category.Trim());
-        }
-        sql += " ORDER BY name ASC";
-        cmd.CommandText = sql;
-
-        await using var r = await cmd.ExecuteReaderAsync();
-        while (await r.ReadAsync())
-        {
-            list.Add(new
-            {
-                id = r.GetString(0),
-                sku = r.GetString(1),
-                barcode = r.IsDBNull(2) ? null : r.GetString(2),
-                name = r.GetString(3),
-                brand = r.IsDBNull(4) ? null : r.GetString(4),
-                category = r.GetString(5),
-                unit = r.GetString(6),
-                costPrice = r.GetDouble(7),
-                markupPct = r.GetDouble(8),
-                salePrice = r.GetDouble(9),
-                commissionPct = r.GetDouble(10),
-                quantity = r.GetDouble(11),
-                minQuantity = r.GetDouble(12),
-                location = r.IsDBNull(13) ? null : r.GetString(13),
-                ncm = r.IsDBNull(14) ? null : r.GetString(14),
-                cfop = r.IsDBNull(15) ? null : r.GetString(15),
-                isWeighable = r.GetInt32(16) == 1,
-                pluCode = r.IsDBNull(17) ? null : r.GetString(17),
-                size = r.IsDBNull(18) ? null : r.GetString(18),
-                color = r.IsDBNull(19) ? null : r.GetString(19),
-                expiryDate = r.IsDBNull(20) ? null : r.GetString(20)
-            });
-        }
-        return list;
-    }
-
-    public async Task<object?> GetProductByIdAsync(Guid id)
-    {
-        await using var c = Open(); await c.OpenAsync();
-        var cmd = c.CreateCommand();
-        cmd.CommandText = "SELECT id,sku,barcode,name,brand,category,unit,cost_price,markup_pct,sale_price,commission_pct,quantity,min_quantity,location,ncm,cfop,is_weighable,plu_code,size,color,expiry_date FROM product WHERE id=$id";
-        cmd.Parameters.AddWithValue("$id", id.ToString());
-        await using var r = await cmd.ExecuteReaderAsync();
-        if (!await r.ReadAsync()) return null;
-        return new
-        {
-            id = r.GetString(0), sku = r.GetString(1), barcode = r.IsDBNull(2) ? null : r.GetString(2),
-            name = r.GetString(3), brand = r.IsDBNull(4) ? null : r.GetString(4), category = r.GetString(5),
-            unit = r.GetString(6), costPrice = r.GetDouble(7), markupPct = r.GetDouble(8), salePrice = r.GetDouble(9),
-            commissionPct = r.GetDouble(10), quantity = r.GetDouble(11), minQuantity = r.GetDouble(12),
-            location = r.IsDBNull(13) ? null : r.GetString(13), ncm = r.IsDBNull(14) ? null : r.GetString(14),
-            cfop = r.IsDBNull(15) ? null : r.GetString(15), isWeighable = r.GetInt32(16) == 1,
-            pluCode = r.IsDBNull(17) ? null : r.GetString(17), size = r.IsDBNull(18) ? null : r.GetString(18),
-            color = r.IsDBNull(19) ? null : r.GetString(19), expiryDate = r.IsDBNull(20) ? null : r.GetString(20)
-        };
-    }
-
-    public async Task<object> SaveProductAsync(ProductDto req)
-    {
-        await using var c = Open(); await c.OpenAsync();
-        var id = req.Id ?? Guid.NewGuid();
-        var cid = Guid.Parse((await QuerySingleAsync(c, "SELECT id FROM company LIMIT 1"))[0]!);
-
-        await ExecuteAsync(c, null,
-            """
-            INSERT INTO product (
-                id, company_id, sku, barcode, name, brand, category, unit, cost_price,
-                markup_pct, sale_price, commission_pct, quantity, min_quantity, location,
-                ncm, cfop, supplier_id, is_weighable, plu_code, size, color, expiry_date, active
-            ) VALUES (
-                $id, $cid, $sku, $bar, $name, $brand, $cat, $unit, $cost,
-                $markup, $sale, $comm, $qty, $minq, $loc,
-                $ncm, $cfop, $sup, $w, $plu, $size, $color, $exp, 1
-            )
-            ON CONFLICT(id) DO UPDATE SET
-                sku=$sku, barcode=$bar, name=$name, brand=$brand, category=$cat, unit=$unit,
-                cost_price=$cost, markup_pct=$markup, sale_price=$sale, commission_pct=$comm,
-                quantity=$qty, min_quantity=$minq, location=$loc, ncm=$ncm, cfop=$cfop,
-                supplier_id=$sup, is_weighable=$w, plu_code=$plu, size=$size, color=$color, expiry_date=$exp
-            """,
-            ("$id", id), ("$cid", cid), ("$sku", req.Sku), ("$bar", req.Barcode),
-            ("$name", req.Name), ("$brand", req.Brand), ("$cat", req.Category ?? "Mercearia"),
-            ("$unit", req.Unit ?? "UN"), ("$cost", (double)req.CostPrice), ("$markup", (double)req.MarkupPct),
-            ("$sale", (double)req.SalePrice), ("$comm", (double)req.CommissionPct), ("$qty", (double)req.Quantity),
-            ("$minq", (double)req.MinQuantity), ("$loc", req.Location), ("$ncm", req.Ncm),
-            ("$cfop", req.Cfop), ("$sup", req.SupplierId), ("$w", req.IsWeighable ? 1 : 0),
-            ("$plu", req.PluCode), ("$size", req.Size), ("$color", req.Color), ("$exp", req.ExpiryDate));
-
-        return new { id, success = true };
-    }
-
-    public async Task DeleteProductAsync(Guid id)
-    {
-        await using var c = Open(); await c.OpenAsync();
-        await ExecuteAsync(c, null, "UPDATE product SET active=0 WHERE id=$id", ("$id", id));
-    }
-
-    public async Task AdjustProductStockAsync(Guid id, decimal newQuantity, string? reason)
-    {
-        await using var c = Open(); await c.OpenAsync();
-        await ExecuteAsync(c, null, "UPDATE product SET quantity=$q WHERE id=$id", ("$q", (double)newQuantity), ("$id", id));
-    }
-
-    // -----------------------------------------------------------------
-    // Clientes
+    // Clientes e Crediário
     // -----------------------------------------------------------------
     public async Task<IReadOnlyList<object>> ListCustomersAsync(string? query = null)
     {
         var list = new List<object>();
         await using var c = Open(); await c.OpenAsync();
         var cmd = c.CreateCommand();
-        var sql = "SELECT id,type,name,trade_name,cpf_cnpj,phone,cell_phone,email,credit_limit,current_debt,blocked,city,state FROM customer WHERE active=1";
+        var sql = "SELECT id,type,name,trade_name,cpf_cnpj,phone,cell_phone,email,credit_limit,current_debt,blocked,city,state,is_employee FROM customer WHERE active=1";
         if (!string.IsNullOrWhiteSpace(query))
         {
             sql += " AND (name LIKE $q OR cpf_cnpj LIKE $q OR trade_name LIKE $q OR phone LIKE $q)";
@@ -920,7 +1477,8 @@ sealed class Database(string connectionString)
                 currentDebt = r.GetDouble(9),
                 blocked = r.GetInt32(10) == 1,
                 city = r.IsDBNull(11) ? null : r.GetString(11),
-                state = r.IsDBNull(12) ? null : r.GetString(12)
+                state = r.IsDBNull(12) ? null : r.GetString(12),
+                isEmployee = r.GetInt32(13) == 1
             });
         }
         return list;
@@ -930,7 +1488,7 @@ sealed class Database(string connectionString)
     {
         await using var c = Open(); await c.OpenAsync();
         var cmd = c.CreateCommand();
-        cmd.CommandText = "SELECT id,type,name,trade_name,cpf_cnpj,rg_ie,phone,cell_phone,email,zip_code,street,number,neighborhood,city,state,delivery_address,credit_limit,current_debt,blocked,notes FROM customer WHERE id=$id";
+        cmd.CommandText = "SELECT id,type,name,trade_name,cpf_cnpj,rg_ie,phone,cell_phone,email,zip_code,street,number,neighborhood,city,state,delivery_address,credit_limit,current_debt,blocked,notes,is_employee FROM customer WHERE id=$id";
         cmd.Parameters.AddWithValue("$id", id.ToString());
         await using var r = await cmd.ExecuteReaderAsync();
         if (!await r.ReadAsync()) return null;
@@ -943,7 +1501,8 @@ sealed class Database(string connectionString)
             street = r.IsDBNull(10) ? null : r.GetString(10), number = r.IsDBNull(11) ? null : r.GetString(11),
             neighborhood = r.IsDBNull(12) ? null : r.GetString(12), city = r.IsDBNull(13) ? null : r.GetString(13),
             state = r.IsDBNull(14) ? null : r.GetString(14), deliveryAddress = r.IsDBNull(15) ? null : r.GetString(15),
-            creditLimit = r.GetDouble(16), currentDebt = r.GetDouble(17), blocked = r.GetInt32(18) == 1, notes = r.IsDBNull(19) ? null : r.GetString(19)
+            creditLimit = r.GetDouble(16), currentDebt = r.GetDouble(17), blocked = r.GetInt32(18) == 1,
+            notes = r.IsDBNull(19) ? null : r.GetString(19), isEmployee = r.GetInt32(20) == 1
         };
     }
 
@@ -958,11 +1517,11 @@ sealed class Database(string connectionString)
             INSERT INTO customer (
                 id, company_id, type, name, trade_name, cpf_cnpj, rg_ie, phone, cell_phone,
                 email, zip_code, street, number, neighborhood, city, state, delivery_address,
-                credit_limit, current_debt, blocked, notes, active
+                credit_limit, current_debt, blocked, notes, is_employee, active
             ) VALUES (
                 $id, $cid, $type, $name, $trade, $cpf, $rg, $phone, $cell,
                 $email, $zip, $st, $num, $neigh, $city, $uf, $deliv,
-                $limit, $debt, $block, $notes, 1
+                $limit, $debt, $block, $notes, 0, 1
             )
             ON CONFLICT(id) DO UPDATE SET
                 type=$type, name=$name, trade_name=$trade, cpf_cnpj=$cpf, rg_ie=$rg,
@@ -1023,9 +1582,8 @@ sealed class Database(string connectionString)
         await using var tx = await c.BeginTransactionAsync();
 
         var receiptId = Guid.NewGuid();
-        var now = DateTimeOffset.UtcNow.ToString("O");
+        var now = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture);
 
-        // Atualiza a conta de crediário se especificada
         if (req.CreditAccountId.HasValue)
         {
             var updAcc = c.CreateCommand();
@@ -1036,7 +1594,6 @@ sealed class Database(string connectionString)
             await updAcc.ExecuteNonQueryAsync();
         }
 
-        // Abate do débito geral do cliente
         var updCust = c.CreateCommand();
         updCust.Transaction = (SqliteTransaction)tx;
         updCust.CommandText = "UPDATE customer SET current_debt = MAX(0, current_debt - $amt) WHERE id=$id";
@@ -1044,7 +1601,14 @@ sealed class Database(string connectionString)
         updCust.Parameters.AddWithValue("$id", req.CustomerId.ToString());
         await updCust.ExecuteNonQueryAsync();
 
-        // Insere o recibo de pagamento
+        // Se for colaborador, atualiza débito no colaborador também
+        var updColab = c.CreateCommand();
+        updColab.Transaction = (SqliteTransaction)tx;
+        updColab.CommandText = "UPDATE collaborator SET current_debt = MAX(0, current_debt - $amt) WHERE id=$id";
+        updColab.Parameters.AddWithValue("$amt", (double)req.Amount);
+        updColab.Parameters.AddWithValue("$id", req.CustomerId.ToString());
+        await updColab.ExecuteNonQueryAsync();
+
         var insRec = c.CreateCommand();
         insRec.Transaction = (SqliteTransaction)tx;
         insRec.CommandText = "INSERT INTO credit_receipt VALUES ($id, $cid, $acc, $amt, $desc, $pen, $op, $now)";
@@ -1058,7 +1622,6 @@ sealed class Database(string connectionString)
         insRec.Parameters.AddWithValue("$now", now);
         await insRec.ExecuteNonQueryAsync();
 
-        // Registra entrada no caixa ativo se houver
         var curSess = await ScalarAsync<string?>("SELECT id FROM cash_session WHERE status='ABERTO' ORDER BY opened_at DESC LIMIT 1");
         if (curSess != null)
         {
@@ -1135,156 +1698,6 @@ sealed class Database(string connectionString)
     }
 
     // -----------------------------------------------------------------
-    // Controle de Caixa Diário
-    // -----------------------------------------------------------------
-    public async Task<object?> GetCurrentCashSessionAsync()
-    {
-        await using var c = Open(); await c.OpenAsync();
-        var cmd = c.CreateCommand();
-        cmd.CommandText = "SELECT id,operator_name,opened_at,opening_balance,total_inflows,total_outflows,closing_balance_expected,status FROM cash_session WHERE status='ABERTO' ORDER BY opened_at DESC LIMIT 1";
-        await using var r = await cmd.ExecuteReaderAsync();
-        if (!await r.ReadAsync()) return null;
-
-        var sessionId = r.GetString(0);
-        var session = new
-        {
-            id = sessionId,
-            operatorName = r.GetString(1),
-            openedAt = r.GetString(2),
-            openingBalance = r.GetDouble(3),
-            totalInflows = r.GetDouble(4),
-            totalOutflows = r.GetDouble(5),
-            closingBalanceExpected = r.GetDouble(6),
-            status = r.GetString(7)
-        };
-
-        var movements = new List<object>();
-        var cmdMov = c.CreateCommand();
-        cmdMov.CommandText = "SELECT id,type,description,amount,operator_name,created_at FROM cash_movement WHERE session_id=$sid ORDER BY created_at ASC";
-        cmdMov.Parameters.AddWithValue("$sid", sessionId);
-        await using var rMov = await cmdMov.ExecuteReaderAsync();
-        while (await rMov.ReadAsync())
-        {
-            movements.Add(new
-            {
-                id = rMov.GetString(0), type = rMov.GetString(1), description = rMov.GetString(2),
-                amount = rMov.GetDouble(3), operatorName = rMov.GetString(4), createdAt = rMov.GetString(5)
-            });
-        }
-
-        return new { session, movements };
-    }
-
-    public async Task<object> OpenCashSessionAsync(OpenCashRequest req)
-    {
-        await using var c = Open(); await c.OpenAsync();
-        var activeId = await ScalarAsync<string?>("SELECT id FROM cash_session WHERE status='ABERTO' LIMIT 1");
-        if (activeId != null) return new { error = "Já existe um caixa aberto no momento" };
-
-        var storeId = (await QuerySingleAsync(c, "SELECT id FROM store LIMIT 1"))[0]!;
-        var sessionId = Guid.NewGuid();
-        var now = DateTimeOffset.UtcNow.ToString("O");
-
-        await ExecuteAsync(c, null,
-            """
-            INSERT INTO cash_session VALUES (
-                $id, $sid, $uid, $op, $now, null,
-                $open, 0, 0, $open, null, null, 'ABERTO'
-            )
-            """,
-            ("$id", sessionId), ("$sid", storeId), ("$uid", req.OperatorId ?? Guid.NewGuid()),
-            ("$op", req.OperatorName ?? "Operador"), ("$now", now), ("$open", (double)req.OpeningBalance));
-
-        await ExecuteAsync(c, null,
-            "INSERT INTO cash_movement VALUES ($id, $sess, 'ABERTURA', 'Abertura de caixa com fundo de troco', $amt, $op, $now)",
-            ("$id", Guid.NewGuid()), ("$sess", sessionId), ("$amt", (double)req.OpeningBalance),
-            ("$op", req.OperatorName ?? "Operador"), ("$now", now));
-
-        return new { sessionId, success = true };
-    }
-
-    public async Task<object> AddCashMovementAsync(string type, CashMovementRequest req)
-    {
-        await using var c = Open(); await c.OpenAsync();
-        var sessionId = await ScalarAsync<string?>("SELECT id FROM cash_session WHERE status='ABERTO' LIMIT 1");
-        if (sessionId == null) return new { error = "Nenhum caixa aberto no momento" };
-
-        var now = DateTimeOffset.UtcNow.ToString("O");
-        var amt = (double)req.Amount;
-
-        await ExecuteAsync(c, null,
-            "INSERT INTO cash_movement VALUES ($id, $sess, $type, $desc, $amt, $op, $now)",
-            ("$id", Guid.NewGuid()), ("$sess", sessionId), ("$type", type),
-            ("$desc", req.Description ?? type), ("$amt", amt),
-            ("$op", req.OperatorName ?? "Operador"), ("$now", now));
-
-        if (type == "SANGRIA")
-        {
-            await ExecuteAsync(c, null,
-                "UPDATE cash_session SET total_outflows = total_outflows + $amt, closing_balance_expected = closing_balance_expected - $amt WHERE id=$id",
-                ("$amt", amt), ("$id", sessionId));
-        }
-        else
-        {
-            await ExecuteAsync(c, null,
-                "UPDATE cash_session SET total_inflows = total_inflows + $amt, closing_balance_expected = closing_balance_expected + $amt WHERE id=$id",
-                ("$amt", amt), ("$id", sessionId));
-        }
-
-        return new { success = true, type, amount = req.Amount, timestamp = now };
-    }
-
-    public async Task<object> CloseCashSessionAsync(CloseCashRequest req)
-    {
-        await using var c = Open(); await c.OpenAsync();
-        var sessionId = await ScalarAsync<string?>("SELECT id FROM cash_session WHERE status='ABERTO' LIMIT 1");
-        if (sessionId == null) return new { error = "Nenhum caixa aberto para fechamento" };
-
-        var expected = await ScalarAsync<double>($"SELECT closing_balance_expected FROM cash_session WHERE id='{sessionId}'");
-        var physical = (double)req.PhysicalBalance;
-        var diff = physical - expected;
-        var now = DateTimeOffset.UtcNow.ToString("O");
-
-        await ExecuteAsync(c, null,
-            """
-            UPDATE cash_session SET
-                closed_at=$now, closing_balance_physical=$phys, difference=$diff, status='FECHADO'
-            WHERE id=$id
-            """,
-            ("$now", now), ("$phys", physical), ("$diff", diff), ("$id", sessionId));
-
-        return new
-        {
-            sessionId,
-            expectedBalance = expected,
-            physicalBalance = physical,
-            difference = diff,
-            closedAt = now,
-            status = "FECHADO"
-        };
-    }
-
-    public async Task<IReadOnlyList<object>> ListCashHistoryAsync()
-    {
-        var list = new List<object>();
-        await using var c = Open(); await c.OpenAsync();
-        var cmd = c.CreateCommand();
-        cmd.CommandText = "SELECT id,operator_name,opened_at,closed_at,opening_balance,closing_balance_expected,closing_balance_physical,difference,status FROM cash_session ORDER BY opened_at DESC LIMIT 30";
-        await using var r = await cmd.ExecuteReaderAsync();
-        while (await r.ReadAsync())
-        {
-            list.Add(new
-            {
-                id = r.GetString(0), operatorName = r.GetString(1), openedAt = r.GetString(2),
-                closedAt = r.IsDBNull(3) ? null : r.GetString(3), openingBalance = r.GetDouble(4),
-                expected = r.GetDouble(5), physical = r.IsDBNull(6) ? null : (double?)r.GetDouble(6),
-                difference = r.IsDBNull(7) ? null : (double?)r.GetDouble(7), status = r.GetString(8)
-            });
-        }
-        return list;
-    }
-
-    // -----------------------------------------------------------------
     // Frente de Caixa (Vendas PDV)
     // -----------------------------------------------------------------
     public async Task<object> CompleteSaleAsync(CompleteSaleWebRequest request)
@@ -1295,9 +1708,8 @@ sealed class Database(string connectionString)
         var storeId = (await QuerySingleAsync(connection, "SELECT id FROM store LIMIT 1"))[0]!;
         var nextNumber = (await ScalarAsync<long>("SELECT COALESCE(MAX(number),0) FROM sale")) + 1;
         var saleId = Guid.NewGuid();
-        var now = DateTimeOffset.UtcNow.ToString("O");
+        var now = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture);
 
-        // 1. Baixa de estoque dos itens da venda
         var itemNumber = 1;
         foreach (var item in request.Items)
         {
@@ -1332,7 +1744,6 @@ sealed class Database(string connectionString)
             await updateCmd.ExecuteNonQueryAsync();
         }
 
-        // 2. Registro dos meios de pagamento
         foreach (var pay in request.Payments)
         {
             var insPay = connection.CreateCommand();
@@ -1347,7 +1758,6 @@ sealed class Database(string connectionString)
             insPay.Parameters.AddWithValue("$chg", (double)request.Change);
             await insPay.ExecuteNonQueryAsync();
 
-            // Se pagamento for crediário, registra carnê e aumenta débito do cliente
             if (pay.Method.Equals("CREDIARIO", StringComparison.OrdinalIgnoreCase) && request.CustomerId.HasValue)
             {
                 var custCmd = connection.CreateCommand();
@@ -1356,6 +1766,13 @@ sealed class Database(string connectionString)
                 custCmd.Parameters.AddWithValue("$amt", (double)pay.Amount);
                 custCmd.Parameters.AddWithValue("$cid", request.CustomerId.Value.ToString());
                 await custCmd.ExecuteNonQueryAsync();
+
+                var colabCmd = connection.CreateCommand();
+                colabCmd.Transaction = (SqliteTransaction)tx;
+                colabCmd.CommandText = "UPDATE collaborator SET current_debt = current_debt + $amt WHERE id=$cid";
+                colabCmd.Parameters.AddWithValue("$amt", (double)pay.Amount);
+                colabCmd.Parameters.AddWithValue("$cid", request.CustomerId.Value.ToString());
+                await colabCmd.ExecuteNonQueryAsync();
 
                 var carneCmd = connection.CreateCommand();
                 carneCmd.Transaction = (SqliteTransaction)tx;
@@ -1371,7 +1788,6 @@ sealed class Database(string connectionString)
             }
         }
 
-        // 3. Insere a venda principal
         var paymentSummary = string.Join(" + ", request.Payments.Select(p => $"{p.Method}: R$ {p.Amount:F2}"));
         var insertSale = connection.CreateCommand();
         insertSale.Transaction = (SqliteTransaction)tx;
@@ -1392,7 +1808,6 @@ sealed class Database(string connectionString)
         insertSale.Parameters.AddWithValue("$now", now);
         await insertSale.ExecuteNonQueryAsync();
 
-        // 4. Se houver dinheiro ou pix e houver caixa aberto, incrementa saldo do caixa
         var cashInflow = request.Payments
             .Where(p => p.Method.Equals("DINHEIRO", StringComparison.OrdinalIgnoreCase))
             .Sum(p => (double)p.Amount - (double)request.Change);
@@ -1498,7 +1913,6 @@ sealed class Database(string connectionString)
 
         var saleId = saleData[0]!;
 
-        // Estorno de estoque
         await using var tx = await c.BeginTransactionAsync();
         var itCmd = c.CreateCommand();
         itCmd.Transaction = (SqliteTransaction)tx;
@@ -1532,7 +1946,7 @@ sealed class Database(string connectionString)
     }
 
     // -----------------------------------------------------------------
-    // Financeiro (Contas a Pagar e Receber)
+    // Financeiro
     // -----------------------------------------------------------------
     public async Task<IReadOnlyList<object>> ListFinancialEntriesAsync(string? type = null, string? status = null)
     {
@@ -1594,7 +2008,7 @@ sealed class Database(string connectionString)
     {
         await using var c = Open(); await c.OpenAsync();
         var finalPaid = (double)(amount - discount + interest);
-        var now = DateTimeOffset.UtcNow.ToString("O");
+        var now = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture);
         await ExecuteAsync(c, null,
             "UPDATE financial_entry SET status='PAGO', paid_at=$now, paid_amount=$amt WHERE id=$id",
             ("$now", now), ("$amt", finalPaid), ("$id", id));
@@ -1676,7 +2090,6 @@ sealed class Database(string connectionString)
         await using var c = Open(); await c.OpenAsync();
         var cid = Guid.Parse((await QuerySingleAsync(c, "SELECT id FROM company LIMIT 1"))[0]!);
 
-        // 1. Cadastra ou atualiza fornecedor
         var supId = Guid.NewGuid();
         var existingSup = await QuerySingleAsync(c, $"SELECT id FROM supplier WHERE cnpj_cpf='{payload.SupplierCnpj}'");
         if (existingSup[0] != null) supId = Guid.Parse(existingSup[0]!);
@@ -1688,7 +2101,6 @@ sealed class Database(string connectionString)
                 ("$corp", payload.SupplierCorporateName), ("$trade", payload.SupplierTradeName));
         }
 
-        // 2. Importa produtos e dá entrada de estoque
         var importedCount = 0;
         foreach (var item in payload.Items)
         {
@@ -1697,7 +2109,6 @@ sealed class Database(string connectionString)
             if (existingP[0] != null)
             {
                 pId = Guid.Parse(existingP[0]!);
-                var oldQty = double.Parse(existingP[1] ?? "0", CultureInfo.InvariantCulture);
                 await ExecuteAsync(c, null,
                     """
                     UPDATE product SET
@@ -1711,16 +2122,23 @@ sealed class Database(string connectionString)
             }
             else
             {
-                await InsertProductFullAsync(c, cid, item.Sku, item.Barcode, item.Name,
-                    payload.SupplierTradeName ?? "Geral", "Mercearia", item.Unit ?? "UN",
-                    (double)item.CostPrice, (double)item.MarkupPct, (double)item.SalePrice,
-                    0, (double)item.Quantity, 5, "Estoque Entrada", item.Ncm ?? "", "5102",
-                    supId.ToString(), 0, null, null, null, null);
+                await InsertProductLinearCompleteAsync(c, cid,
+                    sku: item.Sku, barcode: item.Barcode, secondaryBarcodes: null,
+                    name: item.Name, shortName: item.Name.Length > 25 ? item.Name[..25] : item.Name,
+                    labelName: item.Name, brand: payload.SupplierTradeName ?? "Geral",
+                    department: "Alimentos", section: "Mercearia", category: "Geral", subcategory: null,
+                    unit: item.Unit ?? "UN", itemType: "00", costPrice: (double)item.CostPrice, freightPct: 0,
+                    otherExpensesPct: 0, netCost: (double)item.CostPrice, markupPct: (double)item.MarkupPct,
+                    salePrice: (double)item.SalePrice, wholesaleMinQty: 0, wholesalePrice: 0, promoPrice: 0,
+                    commissionPct: 0, quantity: (double)item.Quantity, minQuantity: 5, maxQuantity: 100,
+                    location: "Estoque Entrada", ncm: item.Ncm ?? "00000000", cest: null, cfop: "5102",
+                    origin: "0", icmsCst: "102", icmsRate: 0, pisCst: "49", pisRate: 0, cofinsCst: "49", cofinsRate: 0,
+                    supplierId: supId.ToString(), isWeighable: 0, weighType: 0, pluCode: null, tareWeight: 0,
+                    shelfLifeDays: 0, supervisorAuthRequired: 0, size: null, color: null, expiryDate: null);
             }
             importedCount++;
         }
 
-        // 3. Registra conta a pagar se solicitado
         if (payload.CreatePayable)
         {
             await ExecuteAsync(c, null,
@@ -1741,7 +2159,7 @@ sealed class Database(string connectionString)
     }
 
     // -----------------------------------------------------------------
-    // Configurações
+    // Configurações e Relatórios
     // -----------------------------------------------------------------
     public async Task<Dictionary<string, string>> GetSettingsAsync()
     {
@@ -1765,9 +2183,6 @@ sealed class Database(string connectionString)
         }
     }
 
-    // -----------------------------------------------------------------
-    // Relatórios (Curva ABC, Fechamento de Caixa, Inadimplência, Estoque Baixo)
-    // -----------------------------------------------------------------
     public async Task<object> GetAbcAnalysisReportAsync()
     {
         var items = new List<object>();
@@ -1847,42 +2262,8 @@ sealed class Database(string connectionString)
     }
 
     // -----------------------------------------------------------------
-    // Usuários
+    // Usuários e Autenticação
     // -----------------------------------------------------------------
-    public async Task<IReadOnlyList<object>> ListUsersAsync()
-    {
-        var list = new List<object>();
-        await using var c = Open(); await c.OpenAsync();
-        var cmd = c.CreateCommand();
-        cmd.CommandText = "SELECT id,name,login,role,commission_pct,active FROM app_user ORDER BY name ASC";
-        await using var r = await cmd.ExecuteReaderAsync();
-        while (await r.ReadAsync())
-        {
-            list.Add(new
-            {
-                id = r.GetString(0), name = r.GetString(1), login = r.GetString(2),
-                role = r.GetString(3), commissionPct = r.GetDouble(4), active = r.GetInt32(5) == 1
-            });
-        }
-        return list;
-    }
-
-    public async Task<object> CreateUserAsync(CreateUserRequest req)
-    {
-        await using var c = Open(); await c.OpenAsync();
-        var id = Guid.NewGuid();
-        var (hash, salt) = Passwords.Hash(req.Password);
-        var perms = JsonSerializer.Serialize(AdminPermissions);
-        var now = DateTimeOffset.UtcNow.ToString("O");
-
-        await ExecuteAsync(c, null,
-            "INSERT INTO app_user VALUES ($id, $name, $login, $h, $s, $role, $comm, $p, 1, $now)",
-            ("$id", id), ("$name", req.Name), ("$login", req.Login), ("$h", hash), ("$s", salt),
-            ("$role", req.Role ?? "Operador"), ("$comm", (double)req.CommissionPct), ("$p", perms), ("$now", now));
-
-        return new { id, success = true };
-    }
-
     public async Task<AppUser?> GetFirstAdminAsync()
     {
         await using var connection = Open(); await connection.OpenAsync();
@@ -1899,8 +2280,25 @@ sealed class Database(string connectionString)
         command.CommandText = "SELECT id,name,login,password_hash,password_salt,role,permissions_json FROM app_user WHERE login=$login AND active=1";
         command.Parameters.AddWithValue("$login", login.Trim());
         await using var reader = await command.ExecuteReaderAsync();
-        if (!await reader.ReadAsync() || !Passwords.Verify(password, reader.GetString(3), reader.GetString(4))) return null;
-        return ReadUser(reader);
+        if (await reader.ReadAsync() && Passwords.Verify(password, reader.GetString(3), reader.GetString(4)))
+        {
+            return ReadUser(reader);
+        }
+
+        // Se não encontrou em app_user, verifica se é um colaborador com login habilitado
+        var colabCmd = connection.CreateCommand();
+        colabCmd.CommandText = "SELECT id,name,login,password_hash,password_salt,role,permissions_json FROM collaborator WHERE login=$login AND can_login=1 AND active=1";
+        colabCmd.Parameters.AddWithValue("$login", login.Trim());
+        await using var colabReader = await colabCmd.ExecuteReaderAsync();
+        if (await colabReader.ReadAsync() && !colabReader.IsDBNull(3) && !colabReader.IsDBNull(4))
+        {
+            if (Passwords.Verify(password, colabReader.GetString(3), colabReader.GetString(4)))
+            {
+                return ReadUser(colabReader);
+            }
+        }
+
+        return null;
     }
 
     public async Task<AppUser?> GetUserAsync(Guid id)
@@ -1910,7 +2308,13 @@ sealed class Database(string connectionString)
         command.CommandText = "SELECT id,name,login,role,permissions_json FROM app_user WHERE id=$id";
         command.Parameters.AddWithValue("$id", id.ToString());
         await using var reader = await command.ExecuteReaderAsync();
-        return await reader.ReadAsync() ? ReadUser(reader) : null;
+        if (await reader.ReadAsync()) return ReadUser(reader);
+
+        var colabCmd = connection.CreateCommand();
+        colabCmd.CommandText = "SELECT id,name,login,role,permissions_json FROM collaborator WHERE id=$id";
+        colabCmd.Parameters.AddWithValue("$id", id.ToString());
+        await using var colabReader = await colabCmd.ExecuteReaderAsync();
+        return await colabReader.ReadAsync() ? ReadUser(colabReader) : null;
     }
 
     // Helpers
@@ -1919,7 +2323,7 @@ sealed class Database(string connectionString)
     private static async Task<long> CountAsync(SqliteConnection c, string table) { var cmd = c.CreateCommand(); cmd.CommandText = $"SELECT COUNT(*) FROM {table}"; return Convert.ToInt64(await cmd.ExecuteScalarAsync(), CultureInfo.InvariantCulture); }
     private static async Task<string?[]> QuerySingleAsync(SqliteConnection c, string sql) { var cmd = c.CreateCommand(); cmd.CommandText = sql; await using var r = await cmd.ExecuteReaderAsync(); if (!await r.ReadAsync()) return Array.Empty<string?>(); var values = new string?[r.FieldCount]; for (var i=0;i<r.FieldCount;i++) values[i] = r.IsDBNull(i) ? null : r.GetValue(i).ToString(); return values; }
     private static async Task ExecuteAsync(SqliteConnection c, System.Data.Common.DbTransaction? tx, string sql, params (string Name, object? Value)[] p) { var cmd = c.CreateCommand(); cmd.CommandText = sql; cmd.Transaction = (SqliteTransaction?)tx; foreach (var item in p) cmd.Parameters.AddWithValue(item.Name, item.Value ?? (object)DBNull.Value); await cmd.ExecuteNonQueryAsync(); }
-    private static AppUser ReadUser(SqliteDataReader r) => new(Guid.Parse(r.GetString(0)), r.GetString(1), r.GetString(2), r.GetString(3), JsonSerializer.Deserialize<string[]>(r.GetString(4)) ?? []);
+    private static AppUser ReadUser(SqliteDataReader r) => new(Guid.Parse(r.GetString(0)), r.GetString(1), r.GetString(2), r.GetString(3), JsonSerializer.Deserialize<string[]>(r.IsDBNull(4) ? "[\"sales.create\"]" : r.GetString(4)) ?? []);
 }
 
 static class Passwords
@@ -1931,9 +2335,17 @@ static class Passwords
 // Contratos e DTOs
 sealed record AppUser(Guid Id, string Name, string Login, string Role, string[] Permissions);
 sealed record LoginRequest(string Login, string Password);
-sealed record CreateUserRequest(string Name, string Login, string Password, string? Role, decimal CommissionPct);
+sealed record CollaboratorDto(Guid? Id, string Name, string? Cpf, string? Rg, string? Phone, string? Email, string? Street, string? Number, string? Neighborhood, string? City, string? State, string? ZipCode, string Role, string? AdmissionDate, decimal Salary, decimal CommissionPct, bool CanLogin, string? Login, string? Password, bool IsCustomer, decimal CreditLimit, decimal CurrentDebt);
 sealed record UpdateCompanyRequest(string Name, string? TradeName, string Cnpj, string? Ie, string? Im, string Segment, string? Phone1, string? Phone2, string? Email, string? ZipCode, string? Street, string? Number, string? Neighborhood, string? City, string? State, string? LogoUrl);
-sealed record ProductDto(Guid? Id, string Sku, string? Barcode, string Name, string? Brand, string? Category, string? Unit, decimal CostPrice, decimal MarkupPct, decimal SalePrice, decimal CommissionPct, decimal Quantity, decimal MinQuantity, string? Location, string? Ncm, string? Cfop, string? SupplierId, bool IsWeighable, string? PluCode, string? Size, string? Color, string? ExpiryDate);
+sealed record ProductLinearDto(
+    Guid? Id, string Sku, string? Barcode, string? SecondaryBarcodes, string Name, string? ShortName, string? LabelName,
+    string? Brand, string? Department, string? Section, string? Category, string? Subcategory, string? Unit, string? ItemType,
+    decimal CostPrice, decimal FreightPct, decimal OtherExpensesPct, decimal MarkupPct, decimal SalePrice,
+    decimal WholesaleMinQty, decimal WholesalePrice, decimal PromoPrice, decimal CommissionPct, decimal Quantity,
+    decimal MinQuantity, decimal MaxQuantity, string? Location, string? Ncm, string? Cest, string? Cfop, string? Origin,
+    string? IcmsCst, decimal IcmsRate, string? PisCst, decimal PisRate, string? CofinsCst, decimal CofinsRate,
+    string? SupplierId, bool IsWeighable, int WeighType, string? PluCode, decimal TareWeight, int ShelfLifeDays,
+    bool SupervisorAuthRequired, string? Size, string? Color, string? ExpiryDate);
 sealed record AdjustStockRequest(Guid ProductId, decimal NewQuantity, string? Reason);
 sealed record CustomerDto(Guid? Id, string? Type, string Name, string? TradeName, string? CpfCnpj, string? RgIe, string? Phone, string? CellPhone, string? Email, string? ZipCode, string? Street, string? Number, string? Neighborhood, string? City, string? State, string? DeliveryAddress, decimal CreditLimit, decimal CurrentDebt, bool Blocked, string? Notes);
 sealed record ReceiveCrediarioRequest(Guid CustomerId, Guid? CreditAccountId, decimal Amount, decimal Discount, decimal Interest, string? OperatorName);
