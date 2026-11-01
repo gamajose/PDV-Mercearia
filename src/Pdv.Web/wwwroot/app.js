@@ -106,13 +106,14 @@ const state = {
 // NAVEGAÇÃO E INICIALIZAÇÃO
 // =====================================================================
 function navigate(route) {
-  state.currentRoute = route;
+  state.currentRoute = (!route || route === "/") ? "/admin" : route;
   window.history.pushState({}, "", route);
   renderApp();
 }
 
 window.addEventListener("popstate", () => {
-  state.currentRoute = window.location.pathname || "/pdv";
+  const p = window.location.pathname;
+  state.currentRoute = (!p || p === "/") ? "/admin" : p;
   renderApp();
 });
 
@@ -136,12 +137,14 @@ async function init() {
     if (el) el.innerText = new Date().toLocaleString("pt-BR");
   }, 1000);
 
-  // Rota inicial pela URL
+  // Rota inicial pela URL: Frente de Caixa isolado ou Retaguarda Administrativa
   const path = window.location.pathname;
-  if (path && path !== "/") {
+  if (path === "/pdv") {
+    state.currentRoute = "/pdv";
+  } else if (path && path !== "/") {
     state.currentRoute = path;
   } else {
-    state.currentRoute = "/pdv";
+    state.currentRoute = "/admin";
   }
 
   renderApp();
@@ -169,12 +172,19 @@ async function loadCustomersInBackground() {
 // GERENCIADOR GLOBAL DE TECLAS DE ATALHO (HOTKEYS GDM PDV)
 // =====================================================================
 window.addEventListener("keydown", (e) => {
-  // Tecla Escape: fecha qualquer modal aberto
+  // Tecla Escape: fecha modal aberto ou sai do PDV para a Retaguarda
   if (e.key === "Escape") {
     const modal = document.getElementById("modal-container");
     if (modal && modal.children.length > 0) {
       e.preventDefault();
       closeModal();
+      return;
+    }
+    if (state.currentRoute === "/pdv") {
+      e.preventDefault();
+      if (state.cart.length === 0 || confirm("Deseja fechar o Frente de Caixa e retornar à Retaguarda?")) {
+        navigate("/");
+      }
       return;
     }
   }
@@ -276,38 +286,40 @@ function renderApp() {
   const root = document.getElementById("app");
   if (!root) return;
 
+  // Se a rota for o Frente de Caixa (/pdv), renderiza EXCLUSIVAMENTE o PDV sem menus da Retaguarda
+  if (state.currentRoute === "/pdv") {
+    root.innerHTML = `
+      <div class="pdv-standalone-wrapper">
+        ${renderPdvCheckout()}
+      </div>
+      <div id="modal-container"></div>
+    `;
+    return;
+  }
+
+  // RETAGUARDA ERP (ADMINISTRADOR / GESTÃO COMPLETA)
   root.innerHTML = `
-    <!-- 1. BARRA DE MENUS SUPERIOR ENTERPRISE (SÓBRIA, SEM EMOJIS, ALINHADA) -->
+    <!-- BARRA DE MENUS SUPERIOR ENTERPRISE (SÓBRIA, SEM EMOJIS, CENTRALIZADA) -->
     <header class="menubar">
       <div class="menubar-inner">
-        <div class="menu-item ${state.currentRoute === '/produtos' ? 'active' : ''}">
-          <span>Arquivos</span> ▾
+        <div class="menu-item ${['/produtos', '/clientes', '/colaboradores', '/fornecedores', '/vendas', '/compras-nfe'].includes(state.currentRoute) ? 'active' : ''}">
+          <span>Cadastros</span> ▾
           <div class="dropdown-menu">
-            <div class="dropdown-link" onclick="navigate('/pdv')">Frente de Caixa (PDV) <small>F2</small></div>
-            <div class="dropdown-divider"></div>
-            <div class="dropdown-link" onclick="navigate('/produtos')">Cadastro de Produtos <small>Ctrl+P</small></div>
-            <div class="dropdown-link" onclick="navigate('/clientes')">Cadastro de Clientes <small>Ctrl+C</small></div>
-            <div class="dropdown-link" onclick="navigate('/colaboradores')">Cadastro de Colaboradores</div>
-            <div class="dropdown-link" onclick="navigate('/fornecedores')">Cadastro de Fornecedores</div>
+            <div class="dropdown-link" onclick="navigate('/produtos')">Produtos <small>F3</small></div>
+            <div class="dropdown-link" onclick="navigate('/clientes')">Clientes <small>F4</small></div>
+            <div class="dropdown-link" onclick="navigate('/colaboradores')">Colaboradores & Usuários</div>
+            <div class="dropdown-link" onclick="navigate('/fornecedores')">Fornecedores</div>
             <div class="dropdown-divider"></div>
             <div class="dropdown-link" onclick="navigate('/vendas')">Gerenciador de Vendas & Cupons <small>Ctrl+G</small></div>
             <div class="dropdown-link" onclick="navigate('/compras-nfe')">Importar XML NF-e Compras</div>
           </div>
         </div>
 
-        <div class="menu-item ${state.currentRoute === '/configuracoes' ? 'active' : ''}">
-          <span>Configurações</span> ▾
-          <div class="dropdown-menu">
-            <div class="dropdown-link" onclick="navigate('/configuracoes')">Parâmetros & Dados da Matriz</div>
-            <div class="dropdown-link" onclick="navigate('/colaboradores')">Controle de Usuários e Senhas</div>
-          </div>
-        </div>
-
-        <div class="menu-item ${state.currentRoute === '/caixa' || state.currentRoute === '/movimentacoes-caixa' ? 'active' : ''}">
+        <div class="menu-item ${['/caixa', '/movimentacoes-caixa', '/financeiro', '/crediario'].includes(state.currentRoute) ? 'active' : ''}">
           <span>Financeiro</span> ▾
           <div class="dropdown-menu">
             <div class="dropdown-link" onclick="navigate('/caixa')">Abertura / Fechamento de Caixa</div>
-            <div class="dropdown-link" onclick="navigate('/movimentacoes-caixa')">Movimentações Diárias de Caixa</div>
+            <div class="dropdown-link" onclick="navigate('/movimentacoes-caixa')">Movimentações Diárias</div>
             <div class="dropdown-divider"></div>
             <div class="dropdown-link" onclick="openCashOperationsModal('sangria')">Sangria de Caixa (Retirada)</div>
             <div class="dropdown-link" onclick="openCashOperationsModal('suprimento')">Suprimento de Caixa (Troco)</div>
@@ -317,18 +329,18 @@ function renderApp() {
           </div>
         </div>
 
-        <div class="menu-item ${state.currentRoute === '/etiquetas' ? 'active' : ''}">
+        <div class="menu-item ${['/etiquetas'].includes(state.currentRoute) ? 'active' : ''}">
           <span>Estoque & Balança</span> ▾
           <div class="dropdown-menu">
-            <div class="dropdown-link" onclick="navigate('/produtos')">Posição Geral de Estoque</div>
+            <div class="dropdown-link" onclick="navigate('/produtos')">Posição de Estoque</div>
             <div class="dropdown-link" onclick="navigate('/etiquetas')">Impressão de Etiquetas de Gôndola</div>
             <div class="dropdown-divider"></div>
-            <div class="dropdown-link" onclick="downloadToledoCarga()">Exportar Carga Balança Toledo (MGV5/MGV6)</div>
-            <div class="dropdown-link" onclick="downloadFilizolaCarga()">Exportar Carga Balança Filizola Smart</div>
+            <div class="dropdown-link" onclick="downloadToledoCarga()">Exportar Carga Toledo (MGV5/MGV6)</div>
+            <div class="dropdown-link" onclick="downloadFilizolaCarga()">Exportar Carga Filizola Smart</div>
           </div>
         </div>
 
-        <div class="menu-item ${state.currentRoute === '/vendas' || state.currentRoute === '/relatorios-abc' ? 'active' : ''}">
+        <div class="menu-item ${['/relatorios-abc'].includes(state.currentRoute) ? 'active' : ''}">
           <span>Relatórios</span> ▾
           <div class="dropdown-menu">
             <div class="dropdown-link" onclick="navigate('/vendas')">Relatório Geral de Vendas</div>
@@ -337,11 +349,19 @@ function renderApp() {
           </div>
         </div>
 
+        <div class="menu-item ${state.currentRoute === '/configuracoes' ? 'active' : ''}">
+          <span>Configurações</span> ▾
+          <div class="dropdown-menu">
+            <div class="dropdown-link" onclick="navigate('/configuracoes')">Parâmetros & Dados da Matriz</div>
+            <div class="dropdown-link" onclick="navigate('/colaboradores')">Usuários & Permissões</div>
+          </div>
+        </div>
+
         <div class="menu-item">
           <span>Ajuda</span> ▾
           <div class="dropdown-menu">
-            <div class="dropdown-link" onclick="openShortcutsModal()">Guia de Teclas de Atalho</div>
-            <div class="dropdown-link" onclick="openAboutModal()">Sobre o PDV Gama</div>
+            <div class="dropdown-link" onclick="openShortcutsModal()">Guia de Atalhos</div>
+            <div class="dropdown-link" onclick="openAboutModal()">Sobre o Sistema</div>
           </div>
         </div>
 
@@ -353,12 +373,12 @@ function renderApp() {
       </div>
     </header>
 
-    <!-- 2. BARRA DE FERRAMENTAS ENTERPRISE (BOTÕES SÓBRIOS DE ACESSO RÁPIDO) -->
+    <!-- BARRA DE FERRAMENTAS ENTERPRISE (RETAGUARDA LIMPA, SEM PDV NO MEIO) -->
     <nav class="app-toolbar">
       <div class="toolbar-inner">
-        <button class="tool-btn highlight ${state.currentRoute === '/pdv' ? 'active' : ''}" onclick="navigate('/pdv')">
-          <span class="tool-label">PDV CAIXA</span>
-          <span class="tool-sub">F2</span>
+        <button class="tool-btn ${state.currentRoute === '/admin' ? 'active' : ''}" onclick="navigate('/admin')">
+          <span class="tool-label">PAINEL</span>
+          <span class="tool-sub">Início</span>
         </button>
 
         <button class="tool-btn ${state.currentRoute === '/produtos' ? 'active' : ''}" onclick="navigate('/produtos')">
@@ -381,14 +401,19 @@ function renderApp() {
           <span class="tool-sub">Compras</span>
         </button>
 
-        <button class="tool-btn ${state.currentRoute === '/caixa' ? 'active' : ''}" onclick="navigate('/caixa')">
-          <span class="tool-label">CAIXA</span>
-          <span class="tool-sub">Abertura/Fech.</span>
+        <button class="tool-btn ${state.currentRoute === '/etiquetas' ? 'active' : ''}" onclick="navigate('/etiquetas')">
+          <span class="tool-label">ESTOQUE</span>
+          <span class="tool-sub">Etiquetas</span>
         </button>
 
-        <button class="tool-btn ${state.currentRoute === '/movimentacoes-caixa' ? 'active' : ''}" onclick="navigate('/movimentacoes-caixa')">
-          <span class="tool-label">MOVIMENTAÇÕES</span>
-          <span class="tool-sub">Extrato</span>
+        <button class="tool-btn ${state.currentRoute === '/financeiro' ? 'active' : ''}" onclick="navigate('/financeiro')">
+          <span class="tool-label">FINANCEIRO</span>
+          <span class="tool-sub">Contas</span>
+        </button>
+
+        <button class="tool-btn ${state.currentRoute === '/caixa' ? 'active' : ''}" onclick="navigate('/caixa')">
+          <span class="tool-label">CAIXA</span>
+          <span class="tool-sub">Turno</span>
         </button>
 
         <button class="tool-btn ${state.currentRoute === '/vendas' ? 'active' : ''}" onclick="navigate('/vendas')">
@@ -401,19 +426,40 @@ function renderApp() {
           <span class="tool-sub">Sistema</span>
         </button>
 
-        <button class="tool-btn danger-action" style="margin-left:auto;" onclick="openLoginModal()">
+        <div class="tool-divider" style="margin-left:auto;"></div>
+
+        <button class="tool-btn highlight" style="background:#1d4ed8; border-color:#60a5fa;" onclick="navigate('/pdv')" title="Abrir Frente de Caixa">
+          <span class="tool-label" style="color:#ffffff;">ABRIR PDV</span>
+          <span class="tool-sub" style="color:#bfdbfe;">Caixa</span>
+        </button>
+
+        <button class="tool-btn danger-action" onclick="openLoginModal()">
           <span class="tool-label">OPERADOR</span>
-          <span class="tool-sub">${state.user.name.split(" ")[0]} (F9)</span>
+          <span class="tool-sub">${state.user.name.split(" ")[0]}</span>
         </button>
       </div>
     </nav>
 
-    <!-- 3. VIEWPORT PRINCIPAL / CONTEÚDO ATIVO -->
+    <!-- VIEWPORT PRINCIPAL CENTRALIZADO -->
     <main class="app-viewport">
       ${renderCurrentModule()}
     </main>
 
-    <!-- 4. CONTAINER DE MODAIS -->
+    <!-- BARRA DE STATUS INFERIOR CENTRALIZADA -->
+    <footer class="statusbar">
+      <div class="statusbar-inner">
+        <div class="status-left">
+          <span>Empresa: <strong>${state.company.tradeName || state.company.name}</strong></span>
+          <span>•</span>
+          <span>CNPJ: ${state.company.cnpj || '-'}</span>
+          <span>•</span>
+          <span>Usuário: <strong>${state.user.name}</strong> (${state.user.role})</span>
+        </div>
+        <div class="status-right">PDV Gama Enterprise v2.0</div>
+      </div>
+    </footer>
+
+    <!-- CONTAINER DE MODAIS -->
     <div id="modal-container"></div>
   `;
 }
@@ -510,6 +556,10 @@ function renderPdvCheckout() {
               <button class="btn btn-danger btn-sm" style="padding:2px 6px; font-size:10px;" onclick="removeActiveCustomer()" title="Remover cliente">✕</button>
             ` : ''}
           </div>
+
+          <button class="btn btn-outline btn-sm" style="margin-left:8px; border-color:#475569; color:#cbd5e1;" onclick="navigate('/')" title="Retornar à Retaguarda (Esc)">
+            Sair para Retaguarda (Esc)
+          </button>
         </div>
       </div>
 
@@ -2014,8 +2064,8 @@ function renderCustomersModule() {
     <div class="panel">
       <header class="panel-header">
         <div>
-          <h2 class="panel-title">Cadastro Geral de Clientes & Crediário</h2>
-          <small style="color:var(--text-muted);">Padrão GDM TelaCadastroClientes: Pessoa Física/Jurídica, Endereço de Entrega e Limite de Crediário</small>
+          <h2 class="panel-title">Cadastro de Clientes & Crediário</h2>
+          
         </div>
         <div style="display:flex; gap:10px;">
           <input type="text" class="form-control" style="width:260px;" placeholder="Buscar por Nome, CPF ou CNPJ..." onkeyup="filterCustomersList(this.value)" />
@@ -2412,7 +2462,7 @@ function renderCollaboratorsModule() {
       <header class="panel-header">
         <div>
           <h2 class="panel-title">Cadastro de Colaboradores, Usuários & Vendedores</h2>
-          <small style="color:var(--text-muted);">Quadro de funcionários, senhas de acesso ao PDV e vínculo unificado como cliente da loja</small>
+          
         </div>
         <div style="display:flex; gap:10px;">
           <input type="text" class="form-control" style="width:260px;" placeholder="Buscar por Nome, CPF ou Cargo..." onkeyup="filterCollaboratorsList(this.value)" />
@@ -2755,7 +2805,7 @@ function renderProductsModule() {
       <header class="panel-header">
         <div>
           <h2 class="panel-title">Catálogo Geral & Cadastro de Produtos</h2>
-          <small style="color:var(--text-muted);">Padrão Linear Sistemas Supermercados: Multi-EAN, Mercadológico, Balança/PLU, SEFAZ e Formação de Preço</small>
+          
         </div>
         <div style="display:flex; gap:10px;">
           <input type="text" class="form-control" style="width:280px;" placeholder="Buscar por Descrição, SKU, EAN ou PLU..." onkeyup="filterProductsList(this.value)" />
@@ -3183,7 +3233,7 @@ function renderSuppliersModule() {
       <header class="panel-header">
         <div>
           <h2 class="panel-title">Cadastro Geral de Fornecedores & Fabricantes</h2>
-          <small style="color:var(--text-muted);">Padrão GDM TelaCadastroFornecedor: Dados cadastrais, condições de compras e representantes</small>
+          
         </div>
         <div style="display:flex; gap:10px;">
           <input type="text" class="form-control" style="width:260px;" placeholder="Buscar fornecedor por Razão ou CNPJ..." onkeyup="filterSuppliersList(this.value)" />
@@ -3434,7 +3484,7 @@ function renderSettingsModule() {
       <header class="panel-header">
         <div>
           <h2 class="panel-title">Configurações Gerais & Parâmetros da Aplicação</h2>
-          <small style="color:var(--text-muted);">Padrão GDM TelaConfiguracaoAdicional & DadosGeralSistema: Matriz, Balanças, Impressoras e Regras de Negócio</small>
+          
         </div>
       </header>
 
@@ -3657,7 +3707,7 @@ function renderCashModule() {
       <header class="panel-header">
         <div>
           <h2 class="panel-title">Abertura & Fechamento de Caixa do Terminal</h2>
-          <small style="color:var(--text-muted);">Controle de turno do terminal PDV, fundo de troco e fechamento cego de valores</small>
+          
         </div>
         <div style="display:flex; gap:10px;">
           <button class="btn btn-outline" onclick="navigate('/movimentacoes-caixa')">Ver Extrato de Movimentações</button>
@@ -3839,7 +3889,7 @@ function renderCashMovementsModule() {
       <header class="panel-header">
         <div>
           <h2 class="panel-title">Extrato Detalhado de Movimentações de Caixa</h2>
-          <small style="color:var(--text-muted);">Registro de Sangrias (retiradas), Suprimentos (aportes) e Lançamentos de Vendas</small>
+          
         </div>
         <div style="display:flex; gap:10px;">
           <button class="btn btn-secondary" onclick="openCashOperationsModal('suprimento')">+ Suprimento</button>
@@ -3910,8 +3960,8 @@ function renderDashboardModule() {
     <div class="panel">
       <header class="panel-header">
         <div>
-          <h2 class="panel-title">Painel Geral da Retaguarda</h2>
-          <small style="color:var(--text-muted);">${state.company.name} - Operações e Indicadores em Tempo Real</small>
+          <h2 class="panel-title">Painel Geral</h2>
+          
         </div>
       </header>
 
@@ -3944,7 +3994,7 @@ function renderDashboardModule() {
           <div style="display:flex; flex-direction:column; gap:8px;">
             <button class="btn btn-outline" style="justify-content:flex-start;" onclick="navigate('/pdv')">Abrir Frente de Caixa PDV (F2)</button>
             <button class="btn btn-outline" style="justify-content:flex-start;" onclick="navigate('/produtos')">Cadastrar / Consultar Produtos (F3)</button>
-            <button class="btn btn-outline" style="justify-content:flex-start;" onclick="navigate('/clientes')">Cadastro Geral de Clientes (F4)</button>
+            <button class="btn btn-outline" style="justify-content:flex-start;" onclick="navigate('/clientes')">Cadastro de Clientes (F4)</button>
             <button class="btn btn-outline" style="justify-content:flex-start;" onclick="navigate('/colaboradores')">Gerenciar Colaboradores & Vendedores</button>
             <button class="btn btn-outline" style="justify-content:flex-start;" onclick="navigate('/caixa')">Abertura / Fechamento de Caixa</button>
             <button class="btn btn-outline" style="justify-content:flex-start;" onclick="navigate('/vendas')">Gerenciador de Vendas & Cupons (Ctrl+G)</button>
@@ -3993,7 +4043,7 @@ function renderFinancialModule() {
       <header class="panel-header">
         <div>
           <h2 class="panel-title">Financeiro - Contas a Pagar & Receber</h2>
-          <small style="color:var(--text-muted);">Controle de duplicatas, títulos a liquidar e conciliação bancária</small>
+          
         </div>
       </header>
       <div class="table-wrap">
@@ -4038,7 +4088,7 @@ function renderCrediarioModule() {
       <header class="panel-header">
         <div>
           <h2 class="panel-title">Controle Geral de Crediário & Carnês</h2>
-          <small style="color:var(--text-muted);">Vendas a prazo da loja, recebimento de parcelas e extratos por cliente</small>
+          
         </div>
       </header>
       <div class="table-wrap">
@@ -4083,7 +4133,7 @@ function renderLabelsModule() {
       <header class="panel-header">
         <div>
           <h2 class="panel-title">Terminal de Impressão de Etiquetas de Gôndola</h2>
-          <small style="color:var(--text-muted);">Geração de etiquetas térmicas e cartazes de preço para prateleiras</small>
+          
         </div>
       </header>
       <div style="background:#0f172a; border:1px solid var(--border); border-radius:8px; padding:20px; max-width:600px;">
@@ -4121,7 +4171,7 @@ function renderAbcReportModule() {
       <header class="panel-header">
         <div>
           <h2 class="panel-title">Curva ABC de Faturamento por Produto</h2>
-          <small style="color:var(--text-muted);">Classificação de produtos por relevância de receita (Linear Sistemas)</small>
+          
         </div>
       </header>
       <div class="table-wrap">

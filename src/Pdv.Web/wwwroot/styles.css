@@ -36,10 +36,10 @@ body { background: var(--bg-main); color: var(--text-main); min-height: 100vh; o
   user-select: none;
 }
 .menubar-inner {
-  max-width: 1600px;
+  max-width: 1200px;
   width: 100%;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0 16px;
   display: flex;
   align-items: center;
   height: 36px;
@@ -98,10 +98,10 @@ body { background: var(--bg-main); color: var(--text-main); min-height: 100vh; o
   user-select: none;
 }
 .toolbar-inner {
-  max-width: 1600px;
+  max-width: 1200px;
   width: 100%;
   margin: 0 auto;
-  padding: 6px 20px;
+  padding: 6px 16px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -137,14 +137,26 @@ body { background: var(--bg-main); color: var(--text-main); min-height: 100vh; o
 .tool-divider { width: 1px; height: 32px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
 
 /* =====================================================================
-   3. ÁREA CENTRAL DE TRABALHO (WORKSPACE)
+   3. ÁREA CENTRAL DE TRABALHO CENTRALIZADA (VIEWPORT)
    ===================================================================== */
-.app-workspace {
+.app-viewport, .app-workspace {
   flex: 1;
-  padding: 20px;
-  max-width: 1600px;
+  padding: 20px 16px;
+  max-width: 1200px;
   width: 100%;
   margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.pdv-standalone-wrapper {
+  min-height: 100vh;
+  background: var(--pdv-bg);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  box-sizing: border-box;
 }
 
 /* =====================================================================
@@ -159,10 +171,10 @@ body { background: var(--bg-main); color: var(--text-main); min-height: 100vh; o
   color: var(--text-muted);
 }
 .statusbar-inner {
-  max-width: 1600px;
+  max-width: 1200px;
   width: 100%;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0 16px;
   height: 32px;
   display: flex;
   align-items: center;
@@ -622,6 +634,9 @@ body { background: var(--bg-main); color: var(--text-main); min-height: 100vh; o
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 14px 18px;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
   min-height: 86vh;
 }
 
