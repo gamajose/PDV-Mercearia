@@ -71,6 +71,7 @@ function playScannerBeep() {
 // ESTADO GLOBAL DA APLICAÇÃO
 // =====================================================================
 const state = {
+  activeDiscount: 0,
   terminalConfig: {
     storeNumber: 1,
     storeName: "Loja 01 - Matriz",
@@ -217,10 +218,22 @@ window.addEventListener("keydown", (e) => {
 
   // Atalhos específicos para a tela do Frente de Caixa (/pdv)
   if (state.currentRoute === "/pdv") {
-    // F11: Finalizar Venda -> Abre Modal TelaFinalizarVenda
+    // F11: Finalizar Venda
     if (e.key === "F11") {
       e.preventDefault();
       openPaymentModal();
+      return;
+    }
+    // F2: Desconto ou Cupom Promocional
+    if (e.key === "F2") {
+      e.preventDefault();
+      openDiscountModal();
+      return;
+    }
+    // F8: Cancelar Item Específico
+    if (e.key === "F8") {
+      e.preventDefault();
+      openCancelItemModal();
       return;
     }
     // F4 ou Ctrl+C: Identificar Cliente -> Abre Modal TelaListaBuscaClientes
@@ -474,10 +487,7 @@ function renderApp() {
 
     <nav class="app-toolbar">
       <div class="toolbar-inner">
-        <button class="tool-btn ${state.currentRoute === '/retaguarda' || state.currentRoute === '/admin' ? 'active' : ''}" onclick="navigate('/retaguarda')">
-          <span class="tool-label">PAINEL</span>
-          <span class="tool-sub">Início</span>
-        </button>
+        
 
         <button class="tool-btn ${state.currentRoute === '/produtos' ? 'active' : ''}" onclick="navigate('/produtos')">
           <span class="tool-label">PRODUTOS</span>
@@ -583,7 +593,7 @@ function renderCurrentModule() {
     case "/retaguarda":
     case "/admin":
     default:
-      return renderDashboardModule();
+      return renderProductsModule();
   }
 }
 
@@ -591,7 +601,9 @@ function renderCurrentModule() {
 // MÓDULO 1: FRENTE DE CAIXA PDV CHECKOUT (GDM TelaMasterVenda & Linear)
 // =====================================================================
 function renderPdvCheckout() {
-  const subtotal = state.cart.reduce((acc, it) => acc + (it.total || 0), 0);
+  const subtotalRaw = state.cart.reduce((acc, it) => acc + (it.total || 0), 0);
+  const discount = state.activeDiscount || 0;
+  const subtotal = Math.max(0, subtotalRaw - discount);
   const totalItems = state.cart.reduce((acc, it) => acc + (it.quantity || 0), 0);
   const isSaleActive = state.cart.length > 0;
   const lastItem = state.lastItem;
@@ -626,15 +638,15 @@ function renderPdvCheckout() {
           </div>
 
           <div class="pdv-customer-chip">
-            <span style="color:#64748b; font-size:11px; font-weight:700;">CLIENTE:</span>
+            <span style="color:#64748b; font-size:11px; font-weight:700;">CPF NA NOTA:</span>
             <strong style="color:#f8fafc;">
-              ${state.activeCustomer ? state.activeCustomer.name : 'Consumidor Final'}
+              ${state.activeCustomer ? (state.activeCustomer.cpfCnpj || state.activeCustomer.name) : 'Não informado'}
             </strong>
             <button class="btn btn-outline btn-sm" style="padding:2px 6px; font-size:11px;" onclick="openCustomerSearchModal()">
-              ${state.activeCustomer ? 'Trocar (F4)' : 'Identificar (F4)'}
+              ${state.activeCustomer ? 'Alterar (F4)' : 'Informar (F4)'}
             </button>
             ${state.activeCustomer ? `
-              <button class="btn btn-danger btn-sm" style="padding:2px 6px; font-size:10px;" onclick="removeActiveCustomer()" title="Remover cliente">✕</button>
+              <button class="btn btn-danger btn-sm" style="padding:2px 6px; font-size:10px;" onclick="removeActiveCustomer()" title="Remover CPF">✕</button>
             ` : ''}
           </div>
 
@@ -741,10 +753,11 @@ function renderPdvCheckout() {
           <!-- Totalizador Gigante (Subtotal da Venda) -->
           <div class="pdv-subtotal-card">
             <div class="pdv-subtotal-header">
-              <span class="pdv-subtotal-label">Subtotal da Compra</span>
+              <span class="pdv-subtotal-label">Total a Pagar</span>
               <span class="pdv-items-count-badge">${totalItems} ${totalItems === 1 ? 'item' : 'itens'}</span>
             </div>
             <div class="pdv-subtotal-value">${fmtMoeda(subtotal)}</div>
+            ${discount > 0 ? `<div style="font-size:12px; color:#f87171; font-weight:700; margin-top:4px;">Desconto Aplicado: -${fmtMoeda(discount)}</div>` : ''}
           </div>
 
           <!-- Campo de Leitura do Código de Barras / EAN / PLU -->
@@ -762,9 +775,18 @@ function renderPdvCheckout() {
               autofocus
             />
             <div class="pdv-input-hint">
-              Exemplo: digite <strong>5*7891234567890</strong> para 5 unidades. Tecle <strong>F3</strong> para consultar produtos.
+              Exemplo: digite <strong>5*789...</strong> para 5 unidades. <strong>F2</strong> Desconto | <strong>F8</strong> Cancela Item.
             </div>
           </div>
+
+          <!-- Botão Finalizar Venda na Lateral -->
+          <button
+            class="btn btn-success btn-lg"
+            style="width:100%; font-weight:800; padding:12px; font-size:14px; margin-top:10px;"
+            onclick="openPaymentModal()"
+          >
+            Finalizar Venda (F11)
+          </button>
 
 
         </div>
@@ -774,17 +796,21 @@ function renderPdvCheckout() {
       <div class="pdv-command-strip">
         <div class="cmd-item"><kbd>F11</kbd> <span>Finalizar Venda</span></div>
         <span class="cmd-sep">|</span>
+        <div class="cmd-item"><kbd>F2</kbd> <span>Desconto / Cupom</span></div>
+        <span class="cmd-sep">|</span>
         <div class="cmd-item"><kbd>F3</kbd> <span>Consultar Preço</span></div>
         <span class="cmd-sep">|</span>
-        <div class="cmd-item"><kbd>F4</kbd> <span>Identificar Cliente</span></div>
+        <div class="cmd-item"><kbd>F4</kbd> <span>CPF na Nota</span></div>
         <span class="cmd-sep">|</span>
-        <div class="cmd-item"><kbd>F5</kbd> <span>Balança Checkout</span></div>
+        <div class="cmd-item"><kbd>F5</kbd> <span>Balança</span></div>
         <span class="cmd-sep">|</span>
         <div class="cmd-item"><kbd>F6</kbd> <span>Abrir Gaveta</span></div>
         <span class="cmd-sep">|</span>
         <div class="cmd-item"><kbd>F7</kbd> <span>Cancelar Venda</span></div>
         <span class="cmd-sep">|</span>
-        <div class="cmd-item"><kbd>F9</kbd> <span>Trocar Operador</span></div>
+        <div class="cmd-item"><kbd>F8</kbd> <span>Cancelar Item</span></div>
+        <span class="cmd-sep">|</span>
+        <div class="cmd-item"><kbd>F9</kbd> <span>Operador</span></div>
       </div>
       <div style="text-align:center; margin-top:8px;">
         <span style="font-size:11px; color:#475569; cursor:pointer;" onclick="resetPreferredApp()">
@@ -927,6 +953,137 @@ function triggerDrawer() {
 // =====================================================================
 // MODAL 1: FINALIZAÇÃO DA VENDA & PAGAMENTOS (GDM TelaFinalizarVenda)
 // =====================================================================
+
+// =====================================================================
+// FUNÇÕES DE OPERAÇÃO DO CAIXA: CANCELAR ITEM & DESCONTO / CUPOM
+// =====================================================================
+function openCancelItemModal() {
+  if (state.cart.length === 0) {
+    alert("Nenhum item lançado na venda atual.");
+    return;
+  }
+  const modal = document.getElementById("modal-container");
+  modal.innerHTML = `
+    <div class="modal-overlay" style="background: rgba(0,0,0,0.4);">
+      <div class="modal-box" style="max-width:380px; margin-left:auto; margin-right:40px;">
+        <header class="modal-header">
+          <strong class="modal-title">Cancelar Item (F8)</strong>
+          <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
+        </header>
+        <form onsubmit="handleCancelItemSubmit(event)">
+          <div class="modal-body" style="padding:16px;">
+            <label style="font-size:12px; color:#cbd5e1; display:block; margin-bottom:6px;">
+              Número do Item a Cancelar (1 a ${state.cart.length}):
+            </label>
+            <input
+              type="number"
+              id="cancel-item-num"
+              class="form-control"
+              placeholder="Ex: ${state.cart.length} [Enter para último]"
+              min="1"
+              max="${state.cart.length}"
+              autofocus
+              style="font-size:18px; font-weight:800; text-align:center;"
+            />
+          </div>
+          <footer class="modal-footer">
+            <button type="button" class="btn btn-outline" onclick="closeModal()">Voltar (Esc)</button>
+            <button type="submit" class="btn btn-danger">Confirmar Cancelamento [Enter]</button>
+          </footer>
+        </form>
+      </div>
+    </div>
+  `;
+  setTimeout(() => {
+    const inp = document.getElementById("cancel-item-num");
+    if (inp) inp.focus();
+  }, 50);
+}
+
+function handleCancelItemSubmit(e) {
+  e.preventDefault();
+  const inp = document.getElementById("cancel-item-num");
+  let idx = parseInt(inp.value, 10);
+  if (isNaN(idx) || idx < 1 || idx > state.cart.length) {
+    idx = state.cart.length; // Padrão: cancela o último item lançado
+  }
+  const removed = state.cart.splice(idx - 1, 1)[0];
+  closeModal();
+  renderApp();
+  if (removed) {
+    alert(`Item ${idx} (${removed.name}) foi cancelado do cupom.`);
+  }
+}
+
+function openDiscountModal() {
+  if (state.cart.length === 0) {
+    alert("Nenhum item na venda para aplicar desconto.");
+    return;
+  }
+  const subtotalRaw = state.cart.reduce((acc, it) => acc + (it.total || 0), 0);
+  const modal = document.getElementById("modal-container");
+  modal.innerHTML = `
+    <div class="modal-overlay" style="background: rgba(0,0,0,0.4);">
+      <div class="modal-box" style="max-width:380px; margin-left:auto; margin-right:40px;">
+        <header class="modal-header">
+          <strong class="modal-title">Desconto ou Cupom (F2)</strong>
+          <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
+        </header>
+        <form onsubmit="handleApplyDiscountSubmit(event, ${subtotalRaw})">
+          <div class="modal-body" style="padding:16px;">
+            <div style="font-size:12px; color:#94a3b8; margin-bottom:10px;">
+              Subtotal: <strong style="color:#fff;">${fmtMoeda(subtotalRaw)}</strong>
+            </div>
+            <label style="font-size:12px; color:#cbd5e1; display:block; margin-bottom:6px;">
+              Informe R$ (ex: 5.00), % (ex: 10%) ou Cupom (ex: PROMO10):
+            </label>
+            <input
+              type="text"
+              id="discount-input-field"
+              class="form-control"
+              placeholder="Ex: 10% ou 5,00 ou PROMO10"
+              autofocus
+              style="font-size:16px; font-weight:700;"
+            />
+          </div>
+          <footer class="modal-footer">
+            <button type="button" class="btn btn-outline" onclick="closeModal()">Voltar (Esc)</button>
+            <button type="submit" class="btn btn-primary">Aplicar Desconto [Enter]</button>
+          </footer>
+        </form>
+      </div>
+    </div>
+  `;
+  setTimeout(() => {
+    const inp = document.getElementById("discount-input-field");
+    if (inp) inp.focus();
+  }, 50);
+}
+
+function handleApplyDiscountSubmit(e, subtotal) {
+  e.preventDefault();
+  const inp = document.getElementById("discount-input-field");
+  const raw = (inp.value || "").trim().toUpperCase();
+  if (!raw) { closeModal(); return; }
+
+  let disc = 0;
+  if (raw.endsWith("%")) {
+    const pct = parseFloat(raw.replace("%", "").replace(",", ".")) || 0;
+    disc = (subtotal * pct) / 100;
+  } else if (raw === "PROMO10" || raw === "CUPOM10") {
+    disc = (subtotal * 10) / 100;
+  } else if (raw === "PROMO5" || raw === "CUPOM5") {
+    disc = (subtotal * 5) / 100;
+  } else {
+    disc = parseFloat(raw.replace(",", ".")) || 0;
+  }
+
+  if (disc > subtotal) disc = subtotal;
+  state.activeDiscount = disc;
+  closeModal();
+  renderApp();
+}
+
 function openPaymentModal() {
   if (state.cart.length === 0) {
     alert("Nenhum item lançado no PDV! Bipe produtos antes de finalizar a venda.");
@@ -942,7 +1099,7 @@ function openPaymentModal() {
   const modal = document.getElementById("modal-container");
   modal.innerHTML = `
     <div class="modal-overlay">
-      <div class="modal-box wide">
+      <div class="modal-box" style="max-width: 480px; margin-left: auto; margin-right: 40px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);">
         <header class="modal-header">
           <strong class="modal-title">Finalização da Venda (F11 / GDM TelaFinalizarVenda)</strong>
           <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
@@ -1004,7 +1161,7 @@ function openPaymentModal() {
         <footer class="modal-footer">
           <button type="button" class="btn btn-outline" onclick="closeModal()">Cancelar (Esc)</button>
           <button type="button" class="btn btn-success btn-lg" onclick="confirmPaymentAndFinishSale(${subtotal})">
-            Confirmar Pagamento & Emitir Cupom (Ctrl+F)
+            Finalizar Venda [Enter]
           </button>
         </footer>
       </div>
@@ -1055,20 +1212,11 @@ function renderPaymentMethodView(method, total) {
               class="form-control"
               style="font-size:24px; font-weight:800; font-family:'Consolas', monospace; color:#22c55e; height:50px;"
               value="${total.toFixed(2)}"
-              oninput="handleCashAmountInput(this.value, ${total})"
+              oninput="handleCashAmountInput(this.value, ${total})" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmPaymentAndFinishSale(${total});}"
             />
           </div>
 
-          <!-- Cédulas Rápidas de Supermercado -->
-          <div class="cash-chips-row">
-            <span style="font-size:11px; color:#94a3b8; align-self:center; margin-right:4px;">Cédulas Rápidas:</span>
-            <button type="button" class="cash-chip" onclick="setCashChipValue(${total}, ${total})">Valor Exato</button>
-            <button type="button" class="cash-chip" onclick="setCashChipValue(10, ${total})">R$ 10,00</button>
-            <button type="button" class="cash-chip" onclick="setCashChipValue(20, ${total})">R$ 20,00</button>
-            <button type="button" class="cash-chip" onclick="setCashChipValue(50, ${total})">R$ 50,00</button>
-            <button type="button" class="cash-chip" onclick="setCashChipValue(100, ${total})">R$ 100,00</button>
-            <button type="button" class="cash-chip" onclick="setCashChipValue(200, ${total})">R$ 200,00</button>
-          </div>
+
 
           <!-- Display de Troco -->
           <div class="change-display-box positive" id="change-box" style="margin-top:16px;">
@@ -4146,7 +4294,7 @@ function renderLabelsModule() {
     <div class="panel">
       <header class="panel-header">
         <div>
-          <h2 class="panel-title">Módulo de Impressão de Etiquetas & Balanças</h2>
+          <h2 class="panel-title">Impressão de Etiquetas</h2>
         </div>
       </header>
 
@@ -4185,36 +4333,11 @@ function renderLabelsModule() {
           </div>
 
           <button type="button" class="btn btn-primary" style="width:100%;" onclick="window.print()">
-            Imprimir Etiquetas Selecionadas
+            Imprimir
           </button>
         </div>
 
-        <!-- Bloco 2: Exportação de Cargas de Balança -->
-        <div style="background:#0f172a; border:1px solid var(--border); border-radius:10px; padding:20px;">
-          <h3 style="font-size:15px; color:#fff; font-weight:700; margin-bottom:14px;">2. Carga para Balanças de Autoatendimento / Açougue</h3>
-          <p style="font-size:12px; color:#94a3b8; margin-bottom:16px;">
-            Exporte os arquivos de carga de produtos pesáveis (PLU, descrição, preço e validade) para importação nos softwares das balanças.
-          </p>
-
-          <div style="display:flex; flex-direction:column; gap:12px;">
-            <div style="background:#17223b; border:1px solid var(--border); border-radius:8px; padding:14px; display:flex; justify-content:space-between; align-items:center;">
-              <div>
-                <strong style="color:#fff; font-size:13px;">Toledo MGV5 / MGV6</strong>
-                <div style="font-size:11px; color:#94a3b8;">Gera arquivo no padrão ITENS.TXT</div>
-              </div>
-              <button type="button" class="btn btn-outline btn-sm" onclick="downloadToledoCarga()">Exportar Carga</button>
-            </div>
-
-            <div style="background:#17223b; border:1px solid var(--border); border-radius:8px; padding:14px; display:flex; justify-content:space-between; align-items:center;">
-              <div>
-                <strong style="color:#fff; font-size:13px;">Filizola Smart / Platina</strong>
-                <div style="font-size:11px; color:#94a3b8;">Gera arquivo no padrão CADTXT.TXT</div>
-              </div>
-              <button type="button" class="btn btn-outline btn-sm" onclick="downloadFilizolaCarga()">Exportar Carga</button>
-            </div>
-          </div>
         </div>
-      </div>
     </div>
   `;
 }
