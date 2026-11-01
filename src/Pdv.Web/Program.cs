@@ -215,8 +215,36 @@ app.MapPost("/api/nfe/import-parsed", async (ImportNfePayload payload, Database 
 });
 
 // ---------------------------------------------------------------------
-// 11. Configurações de Hardware e Sistema
+// 11. Configurações Locais do Terminal (Arquivo Local por Estação / Caixa)
 // ---------------------------------------------------------------------
+app.MapGet("/api/terminal/config", () =>
+{
+    var configPath = Path.Combine(AppContext.BaseDirectory, "terminal-config.json");
+    if (!File.Exists(configPath))
+    {
+        var defaultConfig = new
+        {
+            storeNumber = 1,
+            storeName = "Loja 01 - Matriz",
+            terminalNumber = 1,
+            terminalType = "PDV",
+            scale = new { model = "Toledo Prix 3 / 2090", port = "COM1", baudRate = 9600, dataBits = 8, parity = "None", stopBits = "One" },
+            printer = new { model = "ESC/POS Térmica 80mm", port = "USB001", columns = 48 }
+        };
+        File.WriteAllText(configPath, JsonSerializer.Serialize(defaultConfig));
+    }
+    return Results.Content(File.ReadAllText(configPath), "application/json");
+});
+
+app.MapPost("/api/terminal/config", async (HttpRequest request) =>
+{
+    var configPath = Path.Combine(AppContext.BaseDirectory, "terminal-config.json");
+    using var reader = new StreamReader(request.Body);
+    var body = await reader.ReadToEndAsync();
+    await File.WriteAllTextAsync(configPath, body);
+    return Results.Ok(new { success = true });
+});
+
 app.MapGet("/api/settings", async (Database db) => Results.Ok(await db.GetSettingsAsync()));
 app.MapPost("/api/settings", async (Dictionary<string, string> settings, Database db) =>
 {

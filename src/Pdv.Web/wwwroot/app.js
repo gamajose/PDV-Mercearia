@@ -71,6 +71,14 @@ function playScannerBeep() {
 // ESTADO GLOBAL DA APLICAÇÃO
 // =====================================================================
 const state = {
+  terminalConfig: {
+    storeNumber: 1,
+    storeName: "Loja 01 - Matriz",
+    terminalNumber: 1,
+    terminalType: "PDV",
+    scale: { model: "Toledo Prix 3 / 2090", port: "COM1", baudRate: 9600 },
+    printer: { model: "ESC/POS Térmica 80mm", port: "USB001" }
+  },
   currentRoute: "/pdv",
   user: { name: "Administrador Master", login: "admin", role: "Administrador" },
   company: {
@@ -103,19 +111,33 @@ const state = {
 };
 
 // =====================================================================
-// NAVEGAÇÃO E INICIALIZAÇÃO
+// NAVEGAÇÃO E INICIALIZAÇÃO MULTI-SISTEMAS (PDV / ETIQUETAS / RETAGUARDA)
 // =====================================================================
 function navigate(route) {
-  state.currentRoute = (!route || route === "/") ? "/admin" : route;
+  state.currentRoute = route || "/";
   window.history.pushState({}, "", route);
   renderApp();
 }
 
 window.addEventListener("popstate", () => {
-  const p = window.location.pathname;
-  state.currentRoute = (!p || p === "/") ? "/admin" : p;
+  state.currentRoute = window.location.pathname || "/";
   renderApp();
 });
+
+function launchApp(mode) {
+  const chk = document.getElementById("chk-remember-app");
+  if (chk && chk.checked) {
+    localStorage.setItem("preferred_app_mode", mode);
+  }
+  if (mode === "pdv") navigate("/pdv");
+  else if (mode === "etiquetas") navigate("/etiquetas");
+  else navigate("/retaguarda");
+}
+
+function resetPreferredApp() {
+  localStorage.removeItem("preferred_app_mode");
+  navigate("/");
+}
 
 async function init() {
   try {
@@ -123,28 +145,38 @@ async function init() {
     if (s.user) state.user = s.user;
     const comp = await API.get("/api/company");
     if (comp && comp.name) state.company = comp;
+    const term = await API.get("/api/terminal/config").catch(() => null);
+    if (term && term.storeNumber) state.terminalConfig = term;
   } catch (e) {
     console.warn("Estado inicial:", e);
   }
 
-  // Carrega produtos e clientes antecipadamente em segundo plano
+  // Carrega catálogo e clientes em segundo plano
   loadProductsInBackground();
   loadCustomersInBackground();
 
-  // Relógio de status no rodapé
+  // Relógio sincronizado
   setInterval(() => {
     const el = document.getElementById("clock-display");
     if (el) el.innerText = new Date().toLocaleString("pt-BR");
+    const elPdv = document.getElementById("pdv-clock-display");
+    if (elPdv) elPdv.innerText = new Date().toLocaleTimeString("pt-BR");
   }, 1000);
 
-  // Rota inicial pela URL: Frente de Caixa isolado ou Retaguarda Administrativa
+  // Rota inicial da estação
   const path = window.location.pathname;
   if (path === "/pdv") {
     state.currentRoute = "/pdv";
+  } else if (path === "/etiquetas") {
+    state.currentRoute = "/etiquetas";
   } else if (path && path !== "/") {
     state.currentRoute = path;
   } else {
-    state.currentRoute = "/admin";
+    const pref = localStorage.getItem("preferred_app_mode");
+    if (pref === "pdv") state.currentRoute = "/pdv";
+    else if (pref === "etiquetas") state.currentRoute = "/etiquetas";
+    else if (pref === "retaguarda") state.currentRoute = "/retaguarda";
+    else state.currentRoute = "/";
   }
 
   renderApp();
@@ -180,13 +212,7 @@ window.addEventListener("keydown", (e) => {
       closeModal();
       return;
     }
-    if (state.currentRoute === "/pdv") {
-      e.preventDefault();
-      if (state.cart.length === 0 || confirm("Deseja fechar o Frente de Caixa e retornar à Retaguarda?")) {
-        navigate("/");
-      }
-      return;
-    }
+
   }
 
   // Atalhos específicos para a tela do Frente de Caixa (/pdv)
@@ -209,12 +235,7 @@ window.addEventListener("keydown", (e) => {
       openProductSearchModal();
       return;
     }
-    // Ctrl+G: Gerenciar Vendas / Cupons Fiscais
-    if (e.ctrlKey && e.key.toLowerCase() === "g") {
-      e.preventDefault();
-      openSalesManagerModal();
-      return;
-    }
+
     // Ctrl+A: Operações de Caixa (Sangria / Suprimento / Posição)
     if (e.ctrlKey && e.key.toLowerCase() === "a") {
       e.preventDefault();
@@ -282,11 +303,65 @@ function closeModal() {
 // =====================================================================
 // RENDERIZADOR MASTER DO LAYOUT
 // =====================================================================
+function renderLauncher() {
+  return `
+    <div class="launcher-wrapper">
+      <div class="launcher-card">
+        <div class="launcher-header">
+          <div style="font-size:36px; margin-bottom:8px;">🛒</div>
+          <h2>PDV Gama Retail Suite</h2>
+          <p style="color:#94a3b8; font-size:13px; margin-top:4px;">Selecione o Sistema / Módulo Desta Estação:</p>
+        </div>
+        <div class="launcher-options">
+          <div class="launcher-option-card" onclick="launchApp('pdv')">
+            <div class="opt-icon">🖥️</div>
+            <div class="opt-info">
+              <h3>1. Frente de Caixa (PDV)</h3>
+              <p>Terminal ágil de checkout para operador, com scanner e balança.</p>
+            </div>
+            <button class="btn btn-primary" style="pointer-events:none;">Abrir PDV</button>
+          </div>
+
+          <div class="launcher-option-card" onclick="launchApp('etiquetas')">
+            <div class="opt-icon">🏷️</div>
+            <div class="opt-info">
+              <h3>2. Terminal de Etiquetas & Balança</h3>
+              <p>Emissão de etiquetas de gôndola e exportação de carga Toledo/Filizola.</p>
+            </div>
+            <button class="btn btn-secondary" style="pointer-events:none;">Abrir Etiquetas</button>
+          </div>
+
+          <div class="launcher-option-card" onclick="launchApp('retaguarda')">
+            <div class="opt-icon">🏢</div>
+            <div class="opt-info">
+              <h3>3. Retaguarda Administrativa (ERP)</h3>
+              <p>Gestão completa de cadastros, financeiro, auditoria e empresa.</p>
+            </div>
+            <button class="btn btn-outline" style="pointer-events:none;">Abrir Retaguarda</button>
+          </div>
+        </div>
+        <div class="launcher-footer">
+          <label style="display:flex; align-items:center; justify-content:center; gap:8px; font-size:12px; color:#94a3b8; cursor:pointer;">
+            <input type="checkbox" id="chk-remember-app" />
+            Lembrar este sistema e abrir automaticamente neste computador
+          </label>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderApp() {
   const root = document.getElementById("app");
   if (!root) return;
 
-  // Se a rota for o Frente de Caixa (/pdv), renderiza EXCLUSIVAMENTE o PDV sem menus da Retaguarda
+  // 1. Central de Lançamento (quando nenhum módulo estiver selecionado)
+  if (state.currentRoute === "/") {
+    root.innerHTML = renderLauncher();
+    return;
+  }
+
+  // 2. MÓDULO FRENTE DE CAIXA (PDV ISOLADO, SEM MENUS DA RETAGUARDA)
   if (state.currentRoute === "/pdv") {
     root.innerHTML = `
       <div class="pdv-standalone-wrapper">
@@ -297,12 +372,48 @@ function renderApp() {
     return;
   }
 
-  // RETAGUARDA ERP (ADMINISTRADOR / GESTÃO COMPLETA)
+  // 3. MÓDULO TERMINAL DE ETIQUETAS & BALANÇA (ISOLADO, SEM PDV, SEM FINANCEIRO, SEM FORNECEDORES)
+  if (state.currentRoute === "/etiquetas") {
+    root.innerHTML = `
+      <div class="etiquetas-standalone-wrapper">
+        <header class="menubar">
+          <div class="menubar-inner">
+            <strong style="color:#fff; font-size:14px; display:flex; align-items:center; gap:8px;">
+              <span>🏷️</span> Terminal de Etiquetas de Gôndola & Balança
+            </strong>
+            <div style="margin-left:auto; display:flex; align-items:center; gap:12px; font-size:12px; color:#94a3b8;">
+              <span>Operador: <strong>${state.user.name}</strong></span>
+              <span>•</span>
+              <button class="btn btn-outline btn-sm" onclick="resetPreferredApp()">Alternar Sistema</button>
+            </div>
+          </div>
+        </header>
+
+        <main class="app-viewport">
+          ${renderLabelsModule()}
+        </main>
+
+        <footer class="statusbar">
+          <div class="statusbar-inner">
+            <div class="status-left">
+              <span>${state.company.tradeName || state.company.name}</span>
+              <span>•</span>
+              <span>Módulo de Etiquetas e Cargas de Balança</span>
+            </div>
+            <div class="status-right">PDV Gama v2.0</div>
+          </div>
+        </footer>
+        <div id="modal-container"></div>
+      </div>
+    `;
+    return;
+  }
+
+  // 4. MÓDULO RETAGUARDA ADMINISTRATIVA (ERP DE GESTÃO, SEM CHECKOUT PDV)
   root.innerHTML = `
-    <!-- BARRA DE MENUS SUPERIOR ENTERPRISE (SÓBRIA, SEM EMOJIS, CENTRALIZADA) -->
     <header class="menubar">
       <div class="menubar-inner">
-        <div class="menu-item ${['/produtos', '/clientes', '/colaboradores', '/fornecedores', '/vendas', '/compras-nfe'].includes(state.currentRoute) ? 'active' : ''}">
+        <div class="menu-item ${['/produtos', '/clientes', '/colaboradores', '/fornecedores', '/compras-nfe'].includes(state.currentRoute) ? 'active' : ''}">
           <span>Cadastros</span> ▾
           <div class="dropdown-menu">
             <div class="dropdown-link" onclick="navigate('/produtos')">Produtos <small>F3</small></div>
@@ -310,7 +421,6 @@ function renderApp() {
             <div class="dropdown-link" onclick="navigate('/colaboradores')">Colaboradores & Usuários</div>
             <div class="dropdown-link" onclick="navigate('/fornecedores')">Fornecedores</div>
             <div class="dropdown-divider"></div>
-            <div class="dropdown-link" onclick="navigate('/vendas')">Gerenciador de Vendas & Cupons <small>Ctrl+G</small></div>
             <div class="dropdown-link" onclick="navigate('/compras-nfe')">Importar XML NF-e Compras</div>
           </div>
         </div>
@@ -329,21 +439,10 @@ function renderApp() {
           </div>
         </div>
 
-        <div class="menu-item ${['/etiquetas'].includes(state.currentRoute) ? 'active' : ''}">
-          <span>Estoque & Balança</span> ▾
+        <div class="menu-item ${['/vendas', '/relatorios-abc'].includes(state.currentRoute) ? 'active' : ''}">
+          <span>Vendas & Relatórios</span> ▾
           <div class="dropdown-menu">
-            <div class="dropdown-link" onclick="navigate('/produtos')">Posição de Estoque</div>
-            <div class="dropdown-link" onclick="navigate('/etiquetas')">Impressão de Etiquetas de Gôndola</div>
-            <div class="dropdown-divider"></div>
-            <div class="dropdown-link" onclick="downloadToledoCarga()">Exportar Carga Toledo (MGV5/MGV6)</div>
-            <div class="dropdown-link" onclick="downloadFilizolaCarga()">Exportar Carga Filizola Smart</div>
-          </div>
-        </div>
-
-        <div class="menu-item ${['/relatorios-abc'].includes(state.currentRoute) ? 'active' : ''}">
-          <span>Relatórios</span> ▾
-          <div class="dropdown-menu">
-            <div class="dropdown-link" onclick="navigate('/vendas')">Relatório Geral de Vendas</div>
+            <div class="dropdown-link" onclick="navigate('/vendas')">Gerenciador de Vendas & Cupons</div>
             <div class="dropdown-link" onclick="navigate('/relatorios-abc')">Curva ABC de Produtos</div>
             <div class="dropdown-link" onclick="navigate('/movimentacoes-caixa')">Extrato Consolidado do Caixa</div>
           </div>
@@ -366,17 +465,16 @@ function renderApp() {
         </div>
 
         <div style="margin-left:auto; font-size:11px; color:#64748b; display:flex; align-items:center; gap:8px;">
-          <span>Terminal: <strong>Matriz 01</strong></span>
+          <button class="btn btn-outline btn-sm" style="font-size:11px; padding:2px 8px;" onclick="resetPreferredApp()">Alternar Sistema</button>
           <span>•</span>
           <span id="clock-display">${new Date().toLocaleString("pt-BR")}</span>
         </div>
       </div>
     </header>
 
-    <!-- BARRA DE FERRAMENTAS ENTERPRISE (RETAGUARDA LIMPA, SEM PDV NO MEIO) -->
     <nav class="app-toolbar">
       <div class="toolbar-inner">
-        <button class="tool-btn ${state.currentRoute === '/admin' ? 'active' : ''}" onclick="navigate('/admin')">
+        <button class="tool-btn ${state.currentRoute === '/retaguarda' || state.currentRoute === '/admin' ? 'active' : ''}" onclick="navigate('/retaguarda')">
           <span class="tool-label">PAINEL</span>
           <span class="tool-sub">Início</span>
         </button>
@@ -401,11 +499,6 @@ function renderApp() {
           <span class="tool-sub">Compras</span>
         </button>
 
-        <button class="tool-btn ${state.currentRoute === '/etiquetas' ? 'active' : ''}" onclick="navigate('/etiquetas')">
-          <span class="tool-label">ESTOQUE</span>
-          <span class="tool-sub">Etiquetas</span>
-        </button>
-
         <button class="tool-btn ${state.currentRoute === '/financeiro' ? 'active' : ''}" onclick="navigate('/financeiro')">
           <span class="tool-label">FINANCEIRO</span>
           <span class="tool-sub">Contas</span>
@@ -428,11 +521,6 @@ function renderApp() {
 
         <div class="tool-divider" style="margin-left:auto;"></div>
 
-        <button class="tool-btn highlight" style="background:#1d4ed8; border-color:#60a5fa;" onclick="navigate('/pdv')" title="Abrir Frente de Caixa">
-          <span class="tool-label" style="color:#ffffff;">ABRIR PDV</span>
-          <span class="tool-sub" style="color:#bfdbfe;">Caixa</span>
-        </button>
-
         <button class="tool-btn danger-action" onclick="openLoginModal()">
           <span class="tool-label">OPERADOR</span>
           <span class="tool-sub">${state.user.name.split(" ")[0]}</span>
@@ -440,12 +528,10 @@ function renderApp() {
       </div>
     </nav>
 
-    <!-- VIEWPORT PRINCIPAL CENTRALIZADO -->
     <main class="app-viewport">
       ${renderCurrentModule()}
     </main>
 
-    <!-- BARRA DE STATUS INFERIOR CENTRALIZADA -->
     <footer class="statusbar">
       <div class="statusbar-inner">
         <div class="status-left">
@@ -459,14 +545,10 @@ function renderApp() {
       </div>
     </footer>
 
-    <!-- CONTAINER DE MODAIS -->
     <div id="modal-container"></div>
   `;
 }
 
-// =====================================================================
-// SELETOR DE MÓDULOS / TELAS
-// =====================================================================
 function renderCurrentModule() {
   switch (state.currentRoute) {
     case "/pdv":
@@ -498,6 +580,7 @@ function renderCurrentModule() {
       return renderLabelsModule();
     case "/relatorios-abc":
       return renderAbcReportModule();
+    case "/retaguarda":
     case "/admin":
     default:
       return renderDashboardModule();
@@ -526,10 +609,13 @@ function renderPdvCheckout() {
       <!-- 1. Barra de Topo do PDV -->
       <div class="pdv-top-status-bar">
         <div class="pdv-top-info-left">
-          <span class="pdv-store-name">${state.company.tradeName || state.company.name}</span>
-          <span class="pdv-terminal-badge">CAIXA 01</span>
+          <span class="pdv-store-name">${state.terminalConfig?.storeName || state.company.tradeName || state.company.name}</span>
+          <span class="pdv-terminal-badge">CAIXA ${String(state.terminalConfig?.terminalNumber || 1).padStart(2, '0')}</span>
           <span class="pdv-status-indicator ${isSaleActive ? 'in-sale' : 'ready'}">
             ${isSaleActive ? 'VENDA EM ANDAMENTO' : 'CAIXA LIVRE'}
+          </span>
+          <span style="font-size:11px; color:#38bdf8; font-weight:600; margin-left:6px;">
+            ⚖️ ${state.terminalConfig?.scale?.model || 'Balança Checkout'}
           </span>
         </div>
 
@@ -544,11 +630,6 @@ function renderPdvCheckout() {
             <strong style="color:#f8fafc;">
               ${state.activeCustomer ? state.activeCustomer.name : 'Consumidor Final'}
             </strong>
-            ${state.activeCustomer && state.activeCustomer.creditLimit ? `
-              <span class="badge badge-green" style="font-size:10px;">
-                Limite: ${fmtMoeda(state.activeCustomer.creditLimit - (state.activeCustomer.currentDebt || 0))}
-              </span>
-            ` : ''}
             <button class="btn btn-outline btn-sm" style="padding:2px 6px; font-size:11px;" onclick="openCustomerSearchModal()">
               ${state.activeCustomer ? 'Trocar (F4)' : 'Identificar (F4)'}
             </button>
@@ -557,9 +638,9 @@ function renderPdvCheckout() {
             ` : ''}
           </div>
 
-          <button class="btn btn-outline btn-sm" style="margin-left:8px; border-color:#475569; color:#cbd5e1;" onclick="navigate('/')" title="Retornar à Retaguarda (Esc)">
-            Sair para Retaguarda (Esc)
-          </button>
+          <span id="pdv-clock-display" style="font-size:12px; color:#64748b; margin-left:10px;">
+            ${new Date().toLocaleTimeString("pt-BR")}
+          </span>
         </div>
       </div>
 
@@ -685,54 +766,30 @@ function renderPdvCheckout() {
             </div>
           </div>
 
-          <!-- Botão Principal de Finalização no Painel Lateral -->
-          <button
-            class="btn btn-success btn-lg"
-            style="padding:16px; font-size:16px; font-weight:800; letter-spacing:0.5px;"
-            onclick="openPaymentModal()"
-          >
-            FINALIZAR VENDA (F11)
-          </button>
+
         </div>
       </div>
 
-      <!-- 4. Rodapé com Barra de Teclas de Atalho do Caixa (GDM PDV Style) -->
-      <div class="pdv-hotkeys-bar">
-        <button class="hotkey-btn primary-hotkey" onclick="openPaymentModal()">
-          <kbd>F11</kbd> <span>FINALIZAR VENDA</span>
-        </button>
-
-        <button class="hotkey-btn" onclick="openCustomerSearchModal()">
-          <kbd>F4</kbd> <span>CLIENTE (Ctrl+C)</span>
-        </button>
-
-        <button class="hotkey-btn" onclick="openProductSearchModal()">
-          <kbd>F3</kbd> <span>CONSULTAR PRODUTO (Ctrl+P)</span>
-        </button>
-
-        <button class="hotkey-btn" onclick="openSalesManagerModal()">
-          <kbd>Ctrl+G</kbd> <span>GERENCIAR VENDAS</span>
-        </button>
-
-        <button class="hotkey-btn" onclick="openCashOperationsModal()">
-          <kbd>Ctrl+A</kbd> <span>CAIXA / SANGRIA</span>
-        </button>
-
-        <button class="hotkey-btn" onclick="triggerWeighingAction()">
-          <kbd>F5</kbd> <span>BALANÇA CHECKOUT</span>
-        </button>
-
-        <button class="hotkey-btn" onclick="triggerDrawer()">
-          <kbd>F6</kbd> <span>ABRIR GAVETA</span>
-        </button>
-
-        <button class="hotkey-btn danger-hotkey" onclick="cancelActiveSale()">
-          <kbd>F7</kbd> <span>CANCELAR VENDA</span>
-        </button>
-
-        <button class="hotkey-btn" style="margin-left:auto;" onclick="openLoginModal()">
-          <kbd>F9</kbd> <span>TROCAR OPERADOR</span>
-        </button>
+      <!-- 4. Rodapé Estático de Comandos do Teclado (Sem Mouse, Sem Rolagem) -->
+      <div class="pdv-command-strip">
+        <div class="cmd-item"><kbd>F11</kbd> <span>Finalizar Venda</span></div>
+        <span class="cmd-sep">|</span>
+        <div class="cmd-item"><kbd>F3</kbd> <span>Consultar Preço</span></div>
+        <span class="cmd-sep">|</span>
+        <div class="cmd-item"><kbd>F4</kbd> <span>Identificar Cliente</span></div>
+        <span class="cmd-sep">|</span>
+        <div class="cmd-item"><kbd>F5</kbd> <span>Balança Checkout</span></div>
+        <span class="cmd-sep">|</span>
+        <div class="cmd-item"><kbd>F6</kbd> <span>Abrir Gaveta</span></div>
+        <span class="cmd-sep">|</span>
+        <div class="cmd-item"><kbd>F7</kbd> <span>Cancelar Venda</span></div>
+        <span class="cmd-sep">|</span>
+        <div class="cmd-item"><kbd>F9</kbd> <span>Trocar Operador</span></div>
+      </div>
+      <div style="text-align:center; margin-top:8px;">
+        <span style="font-size:11px; color:#475569; cursor:pointer;" onclick="resetPreferredApp()">
+          Estação: Loja ${state.terminalConfig?.storeNumber || 1} / Caixa ${state.terminalConfig?.terminalNumber || 1} • Alternar Sistema
+        </span>
       </div>
     </div>
   `;
@@ -2137,7 +2194,7 @@ function renderCustomersTable(list) {
         ${c.blocked ? '<span class="badge badge-red">Bloqueado</span>' : '<span class="badge badge-green">Liberado</span>'}
       </td>
       <td class="text-center">
-        <button class="btn btn-outline btn-sm" onclick="openCustomerModal('${c.id}')">Editar</button>
+        <button class="btn-icon" title="Editar" onclick="openCustomerModal('${c.id}')">✏️</button>
       </td>
     </tr>
   `).join("");
@@ -2538,8 +2595,8 @@ function renderCollaboratorsTable(list) {
         ${c.canLogin ? `<span class="badge badge-green">${c.login || 'Ativo'}</span>` : '<span class="badge badge-gray">Sem Login</span>'}
       </td>
       <td class="text-center">
-        <button class="btn btn-outline btn-sm" onclick="openCollaboratorModal('${c.id}')">Editar</button>
-        <button class="btn btn-danger btn-sm" style="margin-left:4px;" onclick="deleteCollaborator('${c.id}', '${c.name}')">Excluir</button>
+        <button class="btn-icon" title="Editar" onclick="openCollaboratorModal('${c.id}')">✏️</button>
+        <button class="btn-icon danger" title="Excluir" onclick="deleteCollaborator('${c.id}', '${c.name}')">🗑️</button>
       </td>
     </tr>
   `).join("");
@@ -2887,8 +2944,8 @@ function renderProductsTable(list) {
         </span>
       </td>
       <td class="text-center">
-        <button class="btn btn-outline btn-sm" onclick="openProductEditModal('${p.id}')">Editar</button>
-        <button class="btn btn-danger btn-sm" style="margin-left:4px;" onclick="deleteProduct('${p.id}', '${p.name}')">Excluir</button>
+        <button class="btn-icon" title="Editar" onclick="openProductEditModal('${p.id}')">✏️</button>
+        <button class="btn-icon danger" title="Excluir" onclick="deleteProduct('${p.id}', '${p.name}')">🗑️</button>
       </td>
     </tr>
   `).join("");
@@ -3302,7 +3359,7 @@ function renderSuppliersTable(list) {
       <td>${s.contactName || '-'}</td>
       <td>${s.city || 'São Paulo'} / ${s.state || 'SP'}</td>
       <td class="text-center">
-        <button class="btn btn-outline btn-sm" onclick="openSupplierModal('${s.id}')">Editar</button>
+        <button class="btn-icon" title="Editar" onclick="openSupplierModal('${s.id}')">✏️</button>
       </td>
     </tr>
   `).join("");
@@ -3491,10 +3548,9 @@ function renderSettingsModule() {
       <!-- Navegador de Abas de Configuração -->
       <div class="form-tabs">
         <span class="tab-link active" onclick="switchModalTab('cfg-tab-empresa', this)">1. Empresa & Matriz</span>
-        <span class="tab-link" onclick="switchModalTab('cfg-tab-hardware', this)">2. Balanças & Impressoras</span>
-        <span class="tab-link" onclick="switchModalTab('cfg-tab-pdv', this)">3. Parâmetros do PDV</span>
-        <span class="tab-link" onclick="switchModalTab('cfg-tab-segmento', this)">4. Segmento da Loja</span>
-        <span class="tab-link" onclick="switchModalTab('cfg-tab-rede', this)">5. Banco de Dados & Rede</span>
+        <span class="tab-link" onclick="switchModalTab('cfg-tab-pdv', this)">2. Parâmetros da Loja</span>
+        <span class="tab-link" onclick="switchModalTab('cfg-tab-segmento', this)">3. Segmento da Loja</span>
+        <span class="tab-link" onclick="switchModalTab('cfg-tab-rede', this)">4. Banco de Dados & Rede</span>
       </div>
 
       <!-- Aba 1: Empresa & Matriz -->
@@ -3540,49 +3596,7 @@ function renderSettingsModule() {
         </form>
       </div>
 
-      <!-- Aba 2: Balanças & Impressoras -->
-      <div id="cfg-tab-hardware" class="ptab-content">
-        <div class="form-grid">
-          <div class="form-group">
-            <label>Balança de Checkout (Caixa):</label>
-            <select class="form-control">
-              <option value="toledo">Toledo (Prix 3 Fit / MGV5 / MGV6)</option>
-              <option value="filizola">Filizola (Smart / BP15 / Platina)</option>
-              <option value="elgin">Elgin (DP-30 / SA-110)</option>
-              <option value="urano">Urano Pop</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Porta de Comunicação Serial (Balança):</label>
-            <select class="form-control">
-              <option value="COM1">COM1 (RS-232 / USB Emulada)</option>
-              <option value="COM2">COM2</option>
-              <option value="COM3">COM3</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Impressora Térmica de Cupom (ESC/POS 80mm):</label>
-            <select class="form-control">
-              <option value="epson">Epson TM-T20X / TM-T88</option>
-              <option value="elgin">Elgin I9 / I7 / I8</option>
-              <option value="bematech">Bematech MP-4200 TH</option>
-              <option value="daruma">Daruma DR800</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Abertura de Gaveta Automática:</label>
-            <select class="form-control">
-              <option value="true">Habilitada (Via pino RJ11 da impressora térmica)</option>
-              <option value="false">Desabilitada</option>
-            </select>
-          </div>
-        </div>
-        <div style="margin-top:20px;">
-          <button type="button" class="btn btn-primary" onclick="alert('Configuração de periféricos salva!')">Salvar Parâmetros de Hardware</button>
-        </div>
-      </div>
-
-      <!-- Aba 3: Parâmetros do PDV -->
+      <!-- Aba 2: Parâmetros da Loja -->
       <div id="cfg-tab-pdv" class="ptab-content">
         <div class="form-grid">
           <div class="form-group" style="grid-column: span 2;">
@@ -4132,25 +4146,73 @@ function renderLabelsModule() {
     <div class="panel">
       <header class="panel-header">
         <div>
-          <h2 class="panel-title">Terminal de Impressão de Etiquetas de Gôndola</h2>
-          
+          <h2 class="panel-title">Módulo de Impressão de Etiquetas & Balanças</h2>
         </div>
       </header>
-      <div style="background:#0f172a; border:1px solid var(--border); border-radius:8px; padding:20px; max-width:600px;">
-        <div class="form-group" style="margin-bottom:14px;">
-          <label>Selecione o Produto para Impressão:</label>
-          <select id="label-prod-sel" class="form-control" onchange="updateLabelPreview(this.value)">
-            ${state.products.map(p => `<option value="${p.id}">${p.sku} - ${p.name} (${fmtMoeda(p.salePrice)})</option>`).join("")}
-          </select>
+
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap:20px;">
+        <!-- Bloco 1: Emissão de Etiquetas de Gôndola -->
+        <div style="background:#0f172a; border:1px solid var(--border); border-radius:10px; padding:20px;">
+          <h3 style="font-size:15px; color:#fff; font-weight:700; margin-bottom:14px;">1. Etiquetas de Prateleira / Gôndola</h3>
+          
+          <div class="form-group" style="margin-bottom:12px;">
+            <label>Selecione o Produto:</label>
+            <select id="label-prod-sel" class="form-control" onchange="updateLabelPreview(this.value)">
+              ${state.products.map(p => `<option value="${p.id}">${p.sku} - ${p.name} (${fmtMoeda(p.salePrice)})</option>`).join("")}
+            </select>
+          </div>
+
+          <div class="form-grid" style="margin-bottom:14px;">
+            <div class="form-group">
+              <label>Formato da Etiqueta:</label>
+              <select id="label-format-sel" class="form-control">
+                <option value="gondola_padrao">Gôndola Padrão (30 x 40 mm)</option>
+                <option value="gondola_grande">Gôndola Destaque (50 x 30 mm)</option>
+                <option value="cartaz_promocional">Cartaz Promocional A4</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Quantidade de Cópias:</label>
+              <input type="number" id="label-copies" class="form-control" value="1" min="1" max="100" />
+            </div>
+          </div>
+
+          <div class="label-preview-box" id="label-preview-container" style="margin-bottom:16px;">
+            <div style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700;">${state.company.tradeName || state.company.name}</div>
+            <div style="font-size:15px; font-weight:800; line-height:1.2; margin:4px 0;" id="label-p-name">ARROZ CAMIL TIPO 1 5KG</div>
+            <div style="font-size:32px; font-weight:900; color:#000; font-family:'Consolas', monospace; text-align:right;" id="label-p-price">R$ 29,90</div>
+            <div class="label-barcode-vis" id="label-p-barcode">7890000000000</div>
+          </div>
+
+          <button type="button" class="btn btn-primary" style="width:100%;" onclick="window.print()">
+            Imprimir Etiquetas Selecionadas
+          </button>
         </div>
-        <div class="label-preview-box" id="label-preview-container">
-          <div style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700;">${state.company.tradeName}</div>
-          <div style="font-size:15px; font-weight:800; line-height:1.2;" id="label-p-name">ARROZ CAMIL TIPO 1 5KG</div>
-          <div style="font-size:32px; font-weight:900; color:#000; font-family:'Consolas', monospace; text-align:right;" id="label-p-price">R$ 29,90</div>
-          <div class="label-barcode-vis" id="label-p-barcode">7890000000000</div>
-        </div>
-        <div style="margin-top:20px; display:flex; gap:10px;">
-          <button type="button" class="btn btn-primary" onclick="window.print()">Imprimir Etiqueta</button>
+
+        <!-- Bloco 2: Exportação de Cargas de Balança -->
+        <div style="background:#0f172a; border:1px solid var(--border); border-radius:10px; padding:20px;">
+          <h3 style="font-size:15px; color:#fff; font-weight:700; margin-bottom:14px;">2. Carga para Balanças de Autoatendimento / Açougue</h3>
+          <p style="font-size:12px; color:#94a3b8; margin-bottom:16px;">
+            Exporte os arquivos de carga de produtos pesáveis (PLU, descrição, preço e validade) para importação nos softwares das balanças.
+          </p>
+
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div style="background:#17223b; border:1px solid var(--border); border-radius:8px; padding:14px; display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <strong style="color:#fff; font-size:13px;">Toledo MGV5 / MGV6</strong>
+                <div style="font-size:11px; color:#94a3b8;">Gera arquivo no padrão ITENS.TXT</div>
+              </div>
+              <button type="button" class="btn btn-outline btn-sm" onclick="downloadToledoCarga()">Exportar Carga</button>
+            </div>
+
+            <div style="background:#17223b; border:1px solid var(--border); border-radius:8px; padding:14px; display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <strong style="color:#fff; font-size:13px;">Filizola Smart / Platina</strong>
+                <div style="font-size:11px; color:#94a3b8;">Gera arquivo no padrão CADTXT.TXT</div>
+              </div>
+              <button type="button" class="btn btn-outline btn-sm" onclick="downloadFilizolaCarga()">Exportar Carga</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

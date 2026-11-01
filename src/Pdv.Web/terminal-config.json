@@ -1,0 +1,19 @@
+{
+  "storeNumber": 1,
+  "storeName": "Loja 01 - Matriz",
+  "terminalNumber": 1,
+  "terminalType": "PDV",
+  "scale": {
+    "model": "Toledo Prix 3 / 2090",
+    "port": "COM1",
+    "baudRate": 9600,
+    "dataBits": 8,
+    "parity": "None",
+    "stopBits": "One"
+  },
+  "printer": {
+    "model": "ESC/POS Térmica 80mm",
+    "port": "USB001",
+    "columns": 48
+  }
+}
